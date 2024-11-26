@@ -1,0 +1,27 @@
+node_modules/
+.env
+
+config.json
+create-vaults.csv
+
+# Coverage directory used by tools like istanbul
+coverage
+multi_coverage
+coverags-final.json
+coverags-final.*.json
+coverags.json
+*.lcov
+
+### Vim ###
+# Swap
+[._]*.s[a-v][a-z]
+!*.svg  # comment out if you don't need vector files
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Session
+Session.vim
+Sessionx.vim
+
