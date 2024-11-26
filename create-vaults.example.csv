@@ -1,0 +1,6 @@
+CreationDate,Network,TradingPair,LinkedPrice,YieldPercentage,ExpireDate,Direction,Quantity
+2024-09-23,Bera Testnet,WETH-USDC,3000,1%,2024-10-01,Buy Low,100
+2024-10-01,Bera Testnet,WETH-USDC,3200,1.1%,2024-10-15,Sell High,1
+2024-10-02,Bera Testnet,WETH-USDC,3300,1.22%,2024-10-15,Sell High,0.01
+2024-10-03,Bera Testnet,WETH-USDC,3400,1.2%,2024-10-30,Sell High,0.5
+2024-09-23,Bera Testnet,WETH-USDC,3400,1.2%,2024-09-30,Sell High,0.5
