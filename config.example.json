@@ -1,0 +1,61 @@
+{
+    "basicSettings": {
+        "hermesApiBaseUrl": "https://hermes.pyth.network/"
+    },
+    "Bera Testnet": {
+        "rpcNode": "rpc_node",
+        "account": "lp_account",
+        "privateKey": "lp_private_key",
+        "factory": "0xDe7c16c01CF3bABdA73a7516b2a5195A3B1F767e",
+        "router": "0xbaDFf0BBC4036811773ce94A72d60da84647C017",
+        "pythAggregator": "0x428B002cf6E4EBa2429B750e3A9d4A4ddDa88958",
+        "pythPriceFeed": "0x2880aB155794e7179c9eE2e38200202908C17B43",
+        "tradingPairs": {
+            "WETH-USDC": {
+                "baseToken": "0x29cA87B2F744127606adA4564DA8219BE6498ca1",
+                "quoteToken": "0x137Df25cAbf220A180300604E57551AC1397959d",
+                "priceFeed": {
+                    "type": "PYTH",
+                    "id": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+                    "decimals": "8"
+                }
+            },
+            "WSOL-USDC": {
+                "baseToken": "0xd6D2D5570200E4cE0e0dE7E160d669a669141C21",
+                "quoteToken": "0x137Df25cAbf220A180300604E57551AC1397959d",
+                "priceFeed": {
+                    "type": "PYTH",
+                    "id": "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+                    "decimals": "8"
+                }
+            },
+            "DOGE-USDC": {
+                "baseToken": "0x25b941Bd909Cb0134dAaFC6A45577B31936BE109",
+                "quoteToken": "0x137Df25cAbf220A180300604E57551AC1397959d",
+                "priceFeed": {
+                    "type": "PYTH",
+                    "id": "0xdcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c",
+                    "decimals": "8"
+                }
+            },
+            "SHIB-USDC": {
+                "baseToken": "0x77Cb31b6013EbD8D9eC1533823a28A88e9aD5d42",
+                "quoteToken": "0x137Df25cAbf220A180300604E57551AC1397959d",
+                "priceFeed": {
+                    "type": "PYTH",
+                    "id": "0xf0d57deca57b3da2fe63a493f4c25925fdfd8edf834b20f93e1f84dbd1504d4a",
+                    "decimals": "10"
+                }
+            },
+            "PEPE-USDC": {
+                "baseToken": "0x5d2faA64e66d8cd14536b14F412a727F24Aac8DB",
+                "quoteToken": "0x137Df25cAbf220A180300604E57551AC1397959d",
+                "priceFeed": {
+                    "type": "PYTH",
+                    "id": "0xd69731a2e74ac1ce884fc3890f7ee324b6deb66147055249568869ed700882e4",
+                    "decimals": "10"
+                }
+            }
+        }
+    }
+}
