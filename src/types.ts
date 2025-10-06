@@ -18,6 +18,7 @@ export type BlockchainConfig = {
   passphrase: string;
   factory: string;
   router: string;
+  vaultBatchManager: string;
   pythAggregator: string;
   pythPriceFeed: string;
   collateralPool: string;
@@ -26,4 +27,11 @@ export type BlockchainConfig = {
 
 export type BasicSettings = {
   hermesApiBaseUrl: string;
+};
+
+export type VaultData = {
+  vault_address: string;
+  tradingPair: string;
+  expiry: string;
+  isLp: boolean;
 };

@@ -22,13 +22,16 @@ npm i
 Run the program `npx ts-node ./src/main.ts "<Bera Testnet|Bera Mainnet>" <COMMAND>`.
 
 - `COMMAND`:
-  - `createVault --tradingPair <trading pair> --linkedPrice <price> --quantity <quantity> --expiry <UNIX epoch> --yieldPercentage <yield rate> [--isBuyLow]`: Create a vault with command line arguments
+  - `createVault --tradingPair <trading pair> --linkedPrice <price> --quantity <quantity> --expiry <UNIX epoch> --yieldPercentage <yield rate> [--isBuyLow] [--useCollateralPool]`: Create a vault with command line arguments
   - `cancelVault --vault <vault address>`: Cancel a specific vault
+  - `cancelMultipleVaults --vault <vault address> [--bypassCheck]`: Cancel multiple vaults in batch
+  - `approveVault --vault <vault address> --approve <true|false>`: Approve a specific to use collateral pool or not
+  - `adjustVaultYield --vault <vault address> --yieldPercentage <yield rate>`: Change yield for specific vault
   - `subscribeVault --vault <vault address> --amount <amount>`: Subscribe a specific vault with amount
   - `withdrawVault --vault <vault address>`: Withdraw a specific vault
   - `lpWithdrawVault --vault <vault address>`: Withdraw a specific vault by the LP
-  - `lpWithdrawAllVaults`: Withdraw all vaults that created by the LP
-  - `subscriberWithdrawAllVaults`: Withdraw all vaults that subscribed by the account
+  - `withdrawMultipleVaults --vault <vault address> [--bypassCheck]`: Withdraw multiple vaults with same trading pair and expiry
+  - `lpWithdrawMultipleVaults --vault <vault address> [--bypassCheck]`: Withdraw multiple vaults by the LP with same trading pair and expiry
   - `showConfig`: display settings
   - `listAllVaults --address <LP address>`: List all vaults that created by the LP
   - `showVault --vault <vault address>`: display vault parameters

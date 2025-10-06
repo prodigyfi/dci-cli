@@ -1,7 +1,15 @@
-import { expect, test, describe, jest, afterEach } from "@jest/globals";
+import {
+  expect,
+  test,
+  describe,
+  jest,
+  afterEach,
+  beforeEach,
+} from "@jest/globals";
 import { ethers, EventLog, NonceManager } from "ethers";
 import { VaultManager } from "../src/vault_manager";
 import { BlockchainConfig } from "../src/types";
+import * as utils from "../src/utils";
 
 import FactoryABI from "../abi/Factory.json";
 import RouterAbi from "../abi/Router.json";
@@ -17,6 +25,7 @@ const mockConfig = {
   passphrase: "mock_passphrase",
   factory: "0x3333333333333333333333333333333333333333",
   router: "0x4444444444444444444444444444444444444444",
+  vaultBatchManager: "0x5555555555555555555555555555555555555555",
   pythAggregator: "0x8888888888888888888888888888888888888888",
   pythPriceFeed: "0x9999999999999999999999999999999999999999",
   collateralPool: "0x1010101010101010101010101010101010101010",
@@ -239,29 +248,33 @@ describe("VaultManager createVault", () => {
   test("create new buy low vault successfully", async () => {
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     await vaultManager.createVault(mockBuyLowVaultOptions);
 
-    expect(spyContract).toHaveBeenCalledTimes(6);
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenCalledTimes(4);
+    expect(spyContract).toHaveBeenNthCalledWith(
+      1,
       mockConfig.factory,
       FactoryABI,
       mockSigner,
     );
-    expect(spyContract).toHaveBeenCalledWith(
-      mockConfig.pythPriceFeed,
-      IPythABI,
-      mockSigner,
-    );
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenNthCalledWith(
+      2,
       tradingPairConfig.baseToken,
       IERC20ABI,
       mockSigner,
     );
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenNthCalledWith(
+      3,
       tradingPairConfig.quoteToken,
       IERC20ABI,
+      mockSigner,
+    );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      4,
+      mockConfig.pythPriceFeed,
+      IPythABI,
       mockSigner,
     );
 
@@ -287,29 +300,33 @@ describe("VaultManager createVault", () => {
   test("create new sell high vault successfully", async () => {
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     await vaultManager.createVault(mockSellHighVaultOptions);
 
-    expect(spyContract).toHaveBeenCalledTimes(6);
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenCalledTimes(4);
+    expect(spyContract).toHaveBeenNthCalledWith(
+      1,
       mockConfig.factory,
       FactoryABI,
       mockSigner,
     );
-    expect(spyContract).toHaveBeenCalledWith(
-      mockConfig.pythPriceFeed,
-      IPythABI,
-      mockSigner,
-    );
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenNthCalledWith(
+      2,
       tradingPairConfig.baseToken,
       IERC20ABI,
       mockSigner,
     );
-    expect(spyContract).toHaveBeenCalledWith(
+    expect(spyContract).toHaveBeenNthCalledWith(
+      3,
       tradingPairConfig.quoteToken,
       IERC20ABI,
+      mockSigner,
+    );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      4,
+      mockConfig.pythPriceFeed,
+      IPythABI,
       mockSigner,
     );
 
@@ -335,7 +352,7 @@ describe("VaultManager createVault", () => {
   test("create new collateralPool vault successfully", async () => {
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     await vaultManager.createVault({
       ...mockBuyLowVaultOptions,
@@ -463,7 +480,6 @@ describe("VaultManager cancelVault", () => {
       linkedToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
       quantity: jest.fn().mockReturnValue(mockBuyLowVaultOptions.quantity),
       depositTotal: jest.fn().mockReturnValue("100000000"),
-      cancellationFeeRate: jest.fn().mockReturnValue("2"),
       oraclePriceAtCreation: jest
         .fn()
         .mockReturnValue(tradingPairConfig.priceFeed.address),
@@ -479,7 +495,7 @@ describe("VaultManager cancelVault", () => {
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     await vaultManager.cancelVault(mockVaultAddress);
 
@@ -489,19 +505,6 @@ describe("VaultManager cancelVault", () => {
       VaultABI,
       mockSigner,
     );
-
-    expect(spyContract).toHaveBeenNthCalledWith(
-      2,
-      mockBuyLowVaultOptions.isBuyLow
-        ? tradingPairConfig.baseToken
-        : tradingPairConfig.quoteToken,
-      IERC20ABI,
-      mockSigner,
-    );
-
-    expect(mockContract.approve).toHaveBeenCalledWith(mockVaultAddress, "0");
-
-    expect(mockApproveWait).toHaveBeenCalledTimes(1);
 
     expect(mockCancelWait).toHaveBeenCalledTimes(1);
   });
@@ -536,13 +539,13 @@ describe("VaultManager subscribeVault", () => {
       balanceOf: jest.fn().mockReturnValue(9000000000000000n),
       name: jest.fn().mockReturnValue("ETH"),
       isBuyLow: jest.fn().mockReturnValue(true),
-      symbol: jest.fn().mockReturnValueOnce("USDC").mockReturnValueOnce("WETH"),
+      symbol: jest.fn().mockReturnValueOnce("WETH").mockReturnValueOnce("USDC"),
       getUpdateFee: jest.fn().mockReturnValue(1n),
     };
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     const spyPythConnection = jest
       .spyOn(vaultManager.pythConnection, "getLatestPriceUpdates")
@@ -565,7 +568,7 @@ describe("VaultManager subscribeVault", () => {
 
     expect(spyContract).toHaveBeenNthCalledWith(
       2,
-      tradingPairConfig.quoteToken,
+      tradingPairConfig.baseToken,
       IERC20ABI,
       mockSigner,
     );
@@ -579,34 +582,13 @@ describe("VaultManager subscribeVault", () => {
 
     expect(spyContract).toHaveBeenNthCalledWith(
       4,
-      mockVaultAddress,
-      VaultABI,
-      mockSigner,
-    );
-
-    expect(spyContract).toHaveBeenNthCalledWith(
-      5,
-      tradingPairConfig.quoteToken,
-      IERC20ABI,
-      mockSigner,
-    );
-
-    expect(spyContract).toHaveBeenNthCalledWith(
-      6,
-      tradingPairConfig.baseToken,
-      IERC20ABI,
-      mockSigner,
-    );
-
-    expect(spyContract).toHaveBeenNthCalledWith(
-      7,
       mockConfig.pythPriceFeed,
       IPythABI,
       mockSigner,
     );
 
     expect(spyContract).toHaveBeenNthCalledWith(
-      8,
+      5,
       mockConfig.router,
       RouterAbi,
       mockSigner,
@@ -662,12 +644,12 @@ describe("VaultManager withdrawVault", () => {
     const mockContract = {
       ...mockWithdrawContract,
       state: jest.fn().mockReturnValue(1),
-      symbol: jest.fn().mockReturnValueOnce("USDC").mockReturnValueOnce("WETH"),
+      symbol: jest.fn().mockReturnValueOnce("WETH").mockReturnValueOnce("USDC"),
     };
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     const spyPythConnection = jest
       .spyOn(vaultManager.pythConnection, "getPriceUpdatesAtTimestamp")
@@ -681,24 +663,33 @@ describe("VaultManager withdrawVault", () => {
 
     await vaultManager.withdrawVault(mockVaultAddress, true);
 
+    expect(spyContract).toHaveBeenCalledTimes(4);
     expect(spyContract).toHaveBeenNthCalledWith(
       1,
       mockVaultAddress,
       VaultABI,
       mockSigner,
     );
-
-    // _getTradingPairOfVault consumes three calls (vault, investmentToken, linkedToken)
-    // and then pythPriceFeed consumes one call
     expect(spyContract).toHaveBeenNthCalledWith(
-      6,
+      2,
+      tradingPairConfig.baseToken,
+      IERC20ABI,
+      mockSigner,
+    );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      3,
       tradingPairConfig.quoteToken,
       IERC20ABI,
       mockSigner,
     );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      4,
+      mockConfig.pythPriceFeed,
+      IPythABI,
+      mockSigner,
+    );
 
     expect(mockContract.balanceOf).toHaveBeenCalledWith(mockVaultAddress);
-
     expect(mockContract.lpWithdraw).toHaveBeenCalledTimes(1);
   });
 
@@ -706,12 +697,12 @@ describe("VaultManager withdrawVault", () => {
     const mockContract = {
       ...mockWithdrawContract,
       state: jest.fn().mockReturnValue(2),
-      symbol: jest.fn().mockReturnValueOnce("USDC").mockReturnValueOnce("WETH"),
+      symbol: jest.fn().mockReturnValueOnce("WETH").mockReturnValueOnce("USDC"),
     };
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     const spyPythConnection = jest
       .spyOn(vaultManager.pythConnection, "getPriceUpdatesAtTimestamp")
@@ -725,24 +716,33 @@ describe("VaultManager withdrawVault", () => {
 
     await vaultManager.withdrawVault(mockVaultAddress, true);
 
+    expect(spyContract).toHaveBeenCalledTimes(4);
     expect(spyContract).toHaveBeenNthCalledWith(
       1,
       mockVaultAddress,
       VaultABI,
       mockSigner,
     );
-
-    // _getTradingPairOfVault consumes three calls (vault, investmentToken, linkedToken)
-    // and then pythPriceFeed consumes one call
     expect(spyContract).toHaveBeenNthCalledWith(
-      6,
+      2,
       tradingPairConfig.baseToken,
       IERC20ABI,
       mockSigner,
     );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      3,
+      tradingPairConfig.quoteToken,
+      IERC20ABI,
+      mockSigner,
+    );
+    expect(spyContract).toHaveBeenNthCalledWith(
+      4,
+      mockConfig.pythPriceFeed,
+      IPythABI,
+      mockSigner,
+    );
 
     expect(mockContract.balanceOf).toHaveBeenCalledWith(mockVaultAddress);
-
     expect(mockContract.lpWithdraw).toHaveBeenCalledTimes(1);
   });
 
@@ -752,12 +752,12 @@ describe("VaultManager withdrawVault", () => {
       owner: jest
         .fn()
         .mockReturnValue("0x0000000000000000000000000000000000000000"),
-      symbol: jest.fn().mockReturnValueOnce("USDC").mockReturnValueOnce("WETH"),
+      symbol: jest.fn().mockReturnValueOnce("WETH").mockReturnValueOnce("USDC"),
     };
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     const spyPythConnection = jest
       .spyOn(vaultManager.pythConnection, "getPriceUpdatesAtTimestamp")
@@ -786,49 +786,305 @@ describe("VaultManager withdrawVault", () => {
   });
 });
 
-describe("VaultManager withdrawAllVaults", () => {
+describe("VaultManager groupVaultsByTradingPairAndExpiry", () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   const vaultManager = new VaultManager(mockConfig, mockBasicSettings);
 
-  test("withdraw each vault", async () => {
-    const checkOwner = true;
+  test("should group vaults correctly by trading pair and expiry", async () => {
+    const mockVaultData = [
+      {
+        vault_address: "0x123",
+        tradingPair: "ETH-USDC",
+        expiry: "1731657600",
+        isLp: true,
+      },
+      {
+        vault_address: "0x456",
+        tradingPair: "ETH-USDC",
+        expiry: "1731657600",
+        isLp: true,
+      },
+      {
+        vault_address: "0x789",
+        tradingPair: "BTC-USDC",
+        expiry: "1731657600",
+        isLp: false,
+      },
+      {
+        vault_address: "0xabc",
+        tradingPair: "ETH-USDC",
+        expiry: "1742284800",
+        isLp: true,
+      },
+    ];
 
-    const mockVaults = [
-      "0x0000000000000000000000000000000000000001",
-      "0x0000000000000000000000000000000000000002",
-      "0x0000000000000000000000000000000000000003",
-      "0x0000000000000000000000000000000000000004",
-    ] as any;
+    const result =
+      await vaultManager.groupVaultsByTradingPairAndExpiry(mockVaultData);
 
-    const mockContract = {
-      getDeployedVaults: jest.fn().mockReturnValue(mockVaults),
-    };
+    expect(Object.keys(result).length).toBe(3);
+    expect(result["ETH-USDC-1731657600-lp"].vaults.length).toBe(2);
+    expect(result["BTC-USDC-1731657600-subscriber"].vaults.length).toBe(1);
+    expect(result["ETH-USDC-1742284800-lp"].vaults.length).toBe(1);
 
+    expect(result["ETH-USDC-1731657600-lp"].tradingPair).toBe("ETH-USDC");
+    expect(result["ETH-USDC-1731657600-lp"].expiry).toBe("1731657600");
+    expect(result["ETH-USDC-1731657600-lp"].isLp).toBe(true);
+  });
+});
+
+describe("VaultManager withdrawMultipleVaults", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const mockWaitResult = {
+    hash: "0x123hash",
+  };
+
+  const mockLpWithdrawVaultsWait = jest
+    .fn<() => Promise<object>>()
+    .mockResolvedValue(mockWaitResult);
+
+  const mockWithdrawVaultsWait = jest
+    .fn<() => Promise<object>>()
+    .mockResolvedValue(mockWaitResult);
+
+  const mockVaultBatchManagerContract = {
+    lpWithdrawVaults: jest
+      .fn()
+      .mockReturnValue({ wait: mockLpWithdrawVaultsWait }),
+    withdrawVaults: jest.fn().mockReturnValue({ wait: mockWithdrawVaultsWait }),
+  };
+
+  const mockPythPriceFeedContract = {
+    getUpdateFee: jest.fn().mockReturnValue("1"),
+  };
+
+  const mockVaultContract = {
+    expiry: jest.fn().mockReturnValue("1731657600"),
+    owner: jest.fn().mockReturnValue(mockConfig.account),
+    investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
+    linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
+    state: jest.fn().mockReturnValue(1),
+    balances: jest.fn().mockReturnValue("100"),
+    isBuyLow: jest.fn().mockReturnValue(true),
+    useCollateralPool: jest.fn().mockReturnValue(false),
+    depositTotal: jest.fn().mockReturnValue("100"),
+  };
+
+  const mockTokenContract = {
+    balanceOf: jest.fn().mockReturnValue("100"),
+    symbol: jest.fn().mockReturnValueOnce("USDC").mockReturnValueOnce("WETH"),
+  };
+
+  const vaultManager = new VaultManager(mockConfig, mockBasicSettings);
+
+  test("should process LP vaults correctly", async () => {
+    const vaultAddresses = ["0xvault1", "0xvault2"];
+
+    // Mock contract creation
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockImplementation((address, abi, signer) => {
+        if (address === mockConfig.vaultBatchManager) {
+          return mockVaultBatchManagerContract as unknown as ethers.Contract;
+        } else if (address === mockConfig.pythPriceFeed) {
+          return mockPythPriceFeedContract as unknown as ethers.Contract;
+        } else if (
+          address === tradingPairConfig.quoteToken ||
+          address === tradingPairConfig.baseToken
+        ) {
+          return mockTokenContract as unknown as ethers.Contract;
+        } else {
+          return mockVaultContract as unknown as ethers.Contract;
+        }
+      });
 
-    const spyWithdrawVault = jest
-      .spyOn(vaultManager, "withdrawVault")
-      .mockResolvedValue();
+    const spyGetTradingPair = jest
+      .spyOn(vaultManager as any, "_getTradingPairOfVault")
+      .mockResolvedValue("ETH-USDC");
 
-    await vaultManager.withdrawAllVaults(checkOwner);
+    // Mock groupVaultsByTradingPairAndExpiry
+    const mockGroupedVaults = {
+      "ETH-USDC-1731657600-lp": {
+        vaults: [
+          {
+            vault_address: "0xvault1",
+            tradingPair: "ETH-USDC",
+            expiry: "1731657600",
+            isLp: true,
+          },
+          {
+            vault_address: "0xvault2",
+            tradingPair: "ETH-USDC",
+            expiry: "1731657600",
+            isLp: true,
+          },
+        ],
+        tradingPair: "ETH-USDC",
+        expiry: "1731657600",
+        isLp: true,
+      },
+    };
 
-    expect(spyContract).toHaveBeenNthCalledWith(
-      1,
-      mockConfig.factory,
-      FactoryABI,
-      mockSigner,
+    const spyGroupVaults = jest
+      .spyOn(vaultManager, "groupVaultsByTradingPairAndExpiry")
+      .mockResolvedValue(mockGroupedVaults);
+
+    // Mock _getHermesPriceUpdateAtTimestamp
+    const spyGetPriceUpdate = jest
+      .spyOn(vaultManager as any, "_getHermesPriceUpdateAtTimestamp")
+      .mockResolvedValue({
+        binary: {
+          encoding: "hex",
+          data: [mockHexData],
+        },
+        parsed: mockedParsedData,
+      });
+
+    await vaultManager.withdrawMultipleVaults(vaultAddresses, true);
+
+    expect(mockPythPriceFeedContract.getUpdateFee).toHaveBeenCalledTimes(1);
+
+    // Verify vault contracts were created for each address
+    expect(spyContract).toHaveBeenCalledWith("0xvault1", VaultABI, mockSigner);
+    expect(spyContract).toHaveBeenCalledWith("0xvault2", VaultABI, mockSigner);
+
+    // Verify groupVaultsByTradingPairAndExpiry was called
+    expect(spyGetTradingPair).toHaveBeenCalledTimes(2);
+    expect(spyGroupVaults).toHaveBeenCalledTimes(1);
+
+    // Verify _getHermesPriceUpdateAtTimestamp was called
+    expect(spyGetPriceUpdate).toHaveBeenCalledTimes(1);
+    expect(spyGetPriceUpdate).toHaveBeenCalledWith(
+      parseInt("1731657600"),
+      "ETH-USDC",
     );
 
-    for (const vaultAddress of mockVaults) {
-      expect(spyWithdrawVault).toHaveBeenCalledWith(vaultAddress, checkOwner);
-    }
+    // Verify lpWithdrawVaults was called with correct parameters
+    expect(mockPythPriceFeedContract.getUpdateFee).toHaveBeenCalledTimes(1);
+    expect(mockVaultBatchManagerContract.lpWithdrawVaults).toHaveBeenCalledWith(
+      ["0xvault1", "0xvault2"],
+      [expect.any(Buffer)],
+      {
+        pythPublishTime: parseInt("1731657600"),
+        pythMinConfidenceRatio: 0,
+        chainlinkUseLatestAnswer: false,
+        chainlinkRoundId: 0,
+      },
+      {
+        value: expect.any(BigInt),
+      },
+    );
+  });
 
-    expect(spyWithdrawVault).toHaveBeenCalledTimes(mockVaults.length);
+  test("should process subscriber vaults correctly", async () => {
+    const vaultAddresses = ["0xvault3", "0xvault4"];
+
+    // Mock contract creation
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockImplementation((address, abi, signer) => {
+        if (address === mockConfig.vaultBatchManager) {
+          return mockVaultBatchManagerContract as unknown as ethers.Contract;
+        } else if (address === mockConfig.pythPriceFeed) {
+          return mockPythPriceFeedContract as unknown as ethers.Contract;
+        } else if (
+          address === tradingPairConfig.quoteToken ||
+          address === tradingPairConfig.baseToken
+        ) {
+          return mockTokenContract as unknown as ethers.Contract;
+        } else {
+          // For subscriber vaults, owner should be different from account
+          return {
+            ...mockVaultContract,
+            owner: jest.fn().mockReturnValue("0xdifferentOwner"),
+          } as unknown as ethers.Contract;
+        }
+      });
+
+    // Mock groupVaultsByTradingPairAndExpiry
+    const mockGroupedVaults = {
+      "BTC-USDC-1731657600-subscriber": {
+        vaults: [
+          {
+            vault_address: "0xvault3",
+            tradingPair: "BTC-USDC",
+            expiry: "1731657600",
+            isLp: false,
+          },
+          {
+            vault_address: "0xvault4",
+            tradingPair: "BTC-USDC",
+            expiry: "1731657600",
+            isLp: false,
+          },
+        ],
+        tradingPair: "BTC-USDC",
+        expiry: "1731657600",
+        isLp: false,
+      },
+    };
+
+    const spyGetTradingPair = jest
+      .spyOn(vaultManager as any, "_getTradingPairOfVault")
+      .mockResolvedValue("BTC-USDC");
+
+    const spyGroupVaults = jest
+      .spyOn(vaultManager, "groupVaultsByTradingPairAndExpiry")
+      .mockResolvedValue(mockGroupedVaults);
+
+    // Mock _getHermesPriceUpdateAtTimestamp
+    const spyGetPriceUpdate = jest
+      .spyOn(vaultManager as any, "_getHermesPriceUpdateAtTimestamp")
+      .mockResolvedValue({
+        binary: {
+          encoding: "hex",
+          data: [mockHexData],
+        },
+        parsed: mockedParsedData,
+      });
+
+    await vaultManager.withdrawMultipleVaults(vaultAddresses, false);
+
+    // Verify factory contract was called to get batch manager address
+    expect(mockPythPriceFeedContract.getUpdateFee).toHaveBeenCalledTimes(1);
+
+    // Verify vault contracts were created for each address
+    expect(spyContract).toHaveBeenCalledWith("0xvault3", VaultABI, mockSigner);
+    expect(spyContract).toHaveBeenCalledWith("0xvault4", VaultABI, mockSigner);
+
+    // Verify groupVaultsByTradingPairAndExpiry was called
+    expect(spyGetTradingPair).toHaveBeenCalledTimes(2);
+    expect(spyGroupVaults).toHaveBeenCalledTimes(1);
+
+    // Verify _getHermesPriceUpdateAtTimestamp was called
+    expect(spyGetPriceUpdate).toHaveBeenCalledTimes(1);
+    expect(spyGetPriceUpdate).toHaveBeenCalledWith(
+      parseInt("1731657600"),
+      "BTC-USDC",
+    );
+
+    // Verify withdrawVaults was called with correct parameters
+    expect(mockVaultBatchManagerContract.withdrawVaults).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(mockVaultBatchManagerContract.withdrawVaults).toHaveBeenCalledWith(
+      ["0xvault3", "0xvault4"],
+      [expect.any(Buffer)],
+      {
+        pythPublishTime: parseInt("1731657600"),
+        pythMinConfidenceRatio: 0,
+        chainlinkUseLatestAnswer: false,
+        chainlinkRoundId: 0,
+      },
+      {
+        value: expect.any(BigInt),
+      },
+    );
   });
 });
 
@@ -861,7 +1117,7 @@ describe("VaultManager listAllVaults", () => {
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     await vaultManager.listAllVaults(lpAddress);
 
@@ -908,7 +1164,7 @@ describe("VaultManager showVault", () => {
 
     const spyContract = jest
       .spyOn(ethers, "Contract")
-      .mockReturnValue(mockContract as any);
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
 
     const spyGetPastLogs = jest
       .spyOn(vaultManager.provider, "getLogs")
@@ -973,5 +1229,220 @@ describe("VaultManager showVault", () => {
       `Remaining Quantity: 1.0`,
     );
     expect(mockConsoleLog).toHaveBeenNthCalledWith(10, `State: 0`);
+  });
+});
+
+describe("VaultManager adjustVaultYield", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const vaultManager = new VaultManager(mockConfig, mockBasicSettings);
+
+  test("adjust yield with collateral pool successfully", async () => {
+    const mockAdjustYieldWait = jest
+      .fn<() => Promise<object>>()
+      .mockResolvedValue({ status: 1 });
+    const mockContract: Record<string, object> = {
+      adjustYieldValue: jest
+        .fn()
+        .mockReturnValue({ wait: mockAdjustYieldWait }),
+      useCollateralPool: jest.fn().mockReturnValue(true),
+      isBuyLow: jest.fn().mockReturnValue(true),
+      investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
+      linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
+      quantity: jest.fn().mockReturnValue(2000000n),
+      depositTotal: jest.fn().mockReturnValue(1000000n),
+      linkedPrice: jest.fn().mockReturnValue(290000000000n),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
+
+    await vaultManager.adjustVaultYield(mockVaultAddress, "5.5");
+
+    expect(spyContract).toHaveBeenCalledWith(
+      mockVaultAddress,
+      VaultABI,
+      mockSigner,
+    );
+
+    expect(mockContract.adjustYieldValue).toHaveBeenCalledWith(
+      "55000000000000000",
+    );
+
+    expect(mockAdjustYieldWait).toHaveBeenCalled();
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `Vault ${mockVaultAddress} yield adjusted to 5.5% successfully`,
+    );
+  });
+
+  test("adjust yield without collateral pool successfully", async () => {
+    const mockAdjustYieldWait = jest
+      .fn<() => Promise<object>>()
+      .mockResolvedValue({ status: 1 });
+    const mockApproveERC20 = jest
+      .spyOn(vaultManager as any, "_approveERC20")
+      .mockResolvedValue(undefined);
+    // mock calculateTokenAmounts return
+    const mockCalculateTokenAmounts = jest.spyOn(
+      utils,
+      "calculateTokenAmounts",
+    );
+    mockCalculateTokenAmounts
+      .mockReturnValueOnce({
+        linkedTokenAmount: 318000000000000000n, // 0.318 WETH
+        investmentTokenAmount: 45900000n, // 45.9 USDC
+      }) // currentDeposit
+      .mockReturnValueOnce({
+        linkedTokenAmount: 6384000000000000000n, // 6.384 WETH
+        investmentTokenAmount: 1744200000n, // 174.42 USDC
+      }); // remainingDeposit
+    const mockContract: Record<string, object> = {
+      adjustYieldValue: jest
+        .fn()
+        .mockReturnValue({ wait: mockAdjustYieldWait }),
+      useCollateralPool: jest.fn().mockReturnValue(false),
+      linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
+      investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
+      isBuyLow: jest.fn().mockReturnValue(true),
+      quantity: jest.fn().mockReturnValue(15000000000), // 15000e6
+      depositTotal: jest.fn().mockReturnValue(250000000n), // 250e6
+      linkedPrice: jest.fn().mockReturnValue(2500000000n), // 2500e6
+      linkedOraclePrice: jest.fn().mockReturnValue(250000000000n), // 2500e8
+      yieldValue: jest.fn().mockReturnValue(60000000000000000n), // 6% = 6e16
+      tradingFeeRate: jest.fn().mockReturnValue(20000000000000000n), // 2% = 2e16
+      oraclePriceAtCreation: jest.fn().mockReturnValue(260000000000n), // 2600e8
+      ownerDepositLinkedTokenAmount: jest
+        .fn()
+        .mockReturnValue(6360000000000000000n), // 6.36 WETH
+      ownerDepositInvestmentTokenAmount: jest.fn().mockReturnValue(918000000n), // 91.8 USDC
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
+
+    await vaultManager.adjustVaultYield(mockVaultAddress, "12.0");
+
+    expect(spyContract).toHaveBeenCalledWith(
+      mockVaultAddress,
+      VaultABI,
+      mockSigner,
+    );
+
+    // approveERC20 twice
+    expect(mockApproveERC20).toHaveBeenCalledTimes(2);
+    expect(mockApproveERC20).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Object),
+      mockVaultAddress,
+      "342000000000000000",
+    );
+    expect(mockApproveERC20).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Object),
+      mockVaultAddress,
+      "872100000",
+    );
+    expect(mockContract.adjustYieldValue).toHaveBeenCalledWith(
+      "120000000000000000",
+    );
+    expect(mockAdjustYieldWait).toHaveBeenCalled();
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `Vault ${mockVaultAddress} yield adjusted to 12.0% successfully`,
+    );
+  });
+});
+
+describe("VaultManager approveVault for collateral pool", () => {
+  const vaultManager: VaultManager = new VaultManager(
+    mockConfig,
+    mockBasicSettings,
+  );
+  let mockApproveVault: jest.Mock;
+  let mockApproveVaultInCollateralPoolWait: jest.Mock;
+  let mockCollateralPoolContract: Record<string, object>;
+  let spyContract;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockApproveVaultInCollateralPoolWait = jest
+      .fn<() => Promise<object>>()
+      .mockResolvedValue({ status: 1 });
+    mockApproveVault = jest
+      .fn()
+      .mockReturnValue({ wait: mockApproveVaultInCollateralPoolWait });
+    mockCollateralPoolContract = {
+      approveVault: mockApproveVault, // mock approveVault in collateral pool
+      useCollateralPool: jest.fn().mockReturnValue(true), // mock useCollateralPool in vault
+    };
+    spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValue(
+        mockCollateralPoolContract as unknown as ethers.Contract,
+      );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("should call approveVault with true and log success", async () => {
+    await vaultManager.approveVault(mockVaultAddress, true);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockConfig.collateralPool,
+      CollateralPoolABI,
+      mockSigner,
+    );
+    expect(mockApproveVault).toHaveBeenCalledWith(mockVaultAddress, true);
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `CollateralPool approval for vault ${mockVaultAddress} succeeded!`,
+    );
+  });
+
+  test("should call approveVault with false and log success", async () => {
+    await vaultManager.approveVault(mockVaultAddress, false);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockConfig.collateralPool,
+      CollateralPoolABI,
+      mockSigner,
+    );
+    expect(mockApproveVault).toHaveBeenCalledWith(mockVaultAddress, false);
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `CollateralPool disapproval for vault ${mockVaultAddress} succeeded!`,
+    );
+  });
+
+  test("should log error if approveVault throws", async () => {
+    mockApproveVaultInCollateralPoolWait.mockImplementation(() => {
+      throw { shortMessage: "fail" };
+    });
+    await vaultManager.approveVault(mockVaultAddress, true);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockConfig.collateralPool,
+      CollateralPoolABI,
+      mockSigner,
+    );
+    expect(mockApproveVault).toHaveBeenCalledWith(mockVaultAddress, true);
+    expect(mockConsoleError).toHaveBeenCalledWith(
+      `CollateralPool approval for vault ${mockVaultAddress} failed!`,
+    );
+    expect(mockConsoleError).toHaveBeenCalledWith("fail");
+  });
+
+  test("should log error if vault is not using collateral pool", async () => {
+    mockCollateralPoolContract.useCollateralPool = jest
+      .fn()
+      .mockReturnValue(false);
+    await vaultManager.approveVault(mockVaultAddress, true);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockConfig.collateralPool,
+      CollateralPoolABI,
+      mockSigner,
+    );
+    expect(mockConsoleError).toHaveBeenCalledWith(
+      `Vault ${mockVaultAddress} is not using collateral pool`,
+    );
+    expect(mockApproveVault).not.toHaveBeenCalled();
   });
 });

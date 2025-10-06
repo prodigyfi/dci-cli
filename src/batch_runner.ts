@@ -17,6 +17,7 @@ const networkOptions = [
 const tradingPairOptions = [
   "WETH-USDC",
   "WBTC-USDC",
+  "cbBTC-USDC",
   "WSOL-USDC",
   "DOGE-USDC",
   "SHIB-USDC",

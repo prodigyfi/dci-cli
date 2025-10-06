@@ -5,6 +5,10 @@
     "stateMutability": "nonpayable"
   },
   {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
     "type": "function",
     "name": "UPGRADE_INTERFACE_VERSION",
     "inputs": [],
@@ -56,6 +60,24 @@
         "name": "_threshold",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "changeMinDepositAmountForVault",
+    "inputs": [
+      {
+        "name": "vault",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_minDepositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -237,10 +259,21 @@
   {
     "type": "function",
     "name": "getDeployedVaults",
-    "inputs": [],
+    "inputs": [
+      {
+        "name": "_startIndex",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_length",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
-        "name": "",
+        "name": "result",
         "type": "address[]",
         "internalType": "address[]"
       }
@@ -301,6 +334,25 @@
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "minDepositAmount",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "minDeposit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -391,6 +443,24 @@
         "name": "_collateralPool",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setMinDepositAmount",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_minDepositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -498,6 +568,19 @@
   },
   {
     "type": "function",
+    "name": "setWETH",
+    "inputs": [
+      {
+        "name": "_weth",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setupTokenPairDecimals",
     "inputs": [
       {
@@ -569,7 +652,7 @@
     ],
     "outputs": [
       {
-        "name": "balance",
+        "name": "enabled",
         "type": "bool",
         "internalType": "bool"
       }
@@ -668,6 +751,19 @@
         "name": "",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "weth",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -1007,6 +1103,11 @@
   },
   {
     "type": "error",
+    "name": "DepositDeadlineNotInFuture",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ERC1967InvalidImplementation",
     "inputs": [
       {
@@ -1028,6 +1129,11 @@
   },
   {
     "type": "error",
+    "name": "ExcessFeeRefundFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ExpectedPause",
     "inputs": []
   },
@@ -1039,6 +1145,11 @@
   {
     "type": "error",
     "name": "FailedDeployment",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "GracePeriodTooLong",
     "inputs": []
   },
   {
@@ -1059,6 +1170,16 @@
   },
   {
     "type": "error",
+    "name": "InvalidAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidConfidenceRatio",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidDecimals",
     "inputs": []
   },
@@ -1074,6 +1195,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidStartIndexOrLength",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidVaultBatchManager",
     "inputs": []
   },
@@ -1085,6 +1211,11 @@
   {
     "type": "error",
     "name": "InvalidVaultVersion",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MinDepositAmountTotalExceeded",
     "inputs": []
   },
   {
@@ -1116,6 +1247,16 @@
   },
   {
     "type": "error",
+    "name": "OwnerMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "QuantityZero",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "SafeCastOverflowedIntDowncast",
     "inputs": [
       {
@@ -1143,6 +1284,22 @@
   },
   {
     "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SafeCastOverflowedUintToInt",
     "inputs": [
       {
@@ -1151,6 +1308,31 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SameAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SameConfidenceRatio",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SameGracePeriod",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SameMinDepositAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SameTradingFeeRate",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1174,6 +1356,11 @@
   },
   {
     "type": "error",
+    "name": "TradingFeeRateTooHigh",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "UUPSUnauthorizedCallContext",
     "inputs": []
   },
@@ -1187,5 +1374,10 @@
         "internalType": "bytes32"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "YieldValueZero",
+    "inputs": []
   }
 ]
