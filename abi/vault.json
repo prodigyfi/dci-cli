@@ -5,6 +5,10 @@
     "stateMutability": "nonpayable"
   },
   {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
     "type": "function",
     "name": "adjustYieldValue",
     "inputs": [
@@ -42,7 +46,7 @@
     ],
     "outputs": [
       {
-        "name": "balance",
+        "name": "investmentTokenBalance",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -57,6 +61,19 @@
         "name": "_minConfidenceRatio",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "changeMinDepositAmount",
+    "inputs": [
+      {
+        "name": "_minDepositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -394,21 +411,27 @@
   },
   {
     "type": "function",
-    "name": "lpCancel",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "lpCancelByManager",
+    "name": "linkedTokenBalances",
     "inputs": [
       {
-        "name": "caller",
+        "name": "user",
         "type": "address",
         "internalType": "address"
       }
     ],
+    "outputs": [
+      {
+        "name": "linkedTokenBalance",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lpCancel",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -493,6 +516,19 @@
   },
   {
     "type": "function",
+    "name": "minDepositAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "oraclePriceAtCreation",
     "inputs": [],
     "outputs": [
@@ -519,6 +555,19 @@
   },
   {
     "type": "function",
+    "name": "ownerDepositFeeAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "ownerDepositInvestmentTokenAmount",
     "inputs": [],
     "outputs": [
@@ -533,6 +582,32 @@
   {
     "type": "function",
     "name": "ownerDepositLinkedTokenAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ownerLockedInvestmentTokenAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ownerLockedLinkedTokenAmount",
     "inputs": [],
     "outputs": [
       {
@@ -598,19 +673,6 @@
         "name": "",
         "type": "uint8",
         "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "totalFees",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -689,6 +751,19 @@
         "name": "",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "weth",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"

@@ -3,8 +3,11 @@ import commandLineArgs from "command-line-args";
 import { VaultManager } from "./vault_manager";
 import {
   createVaultOperationDefinitions,
-  detailedVaultOperationDefinitions,
+  subscribeVaultOperationDefinitions,
+  adjustVaultYieldOperationDefinitions,
+  approveVaultOperationDefinitions,
   simpleVaultOperationDefinitions,
+  multipleVaultOperationDefinitions,
   addressOperationDefinitions,
 } from "./constants";
 
@@ -71,6 +74,48 @@ async function main() {
       await vaultManager.createVault(createVaultOptions);
       break;
     }
+    case "adjustVaultYield": {
+      const adjustVaultYieldOptions = commandLineArgs(
+        adjustVaultYieldOperationDefinitions,
+        {
+          argv: commandArgv,
+        },
+      );
+
+      const valid =
+        adjustVaultYieldOptions.vault &&
+        adjustVaultYieldOptions.yieldPercentage;
+
+      if (!valid) {
+        throw commandLineErrorWithMessage(commandOptions.command);
+      }
+
+      await vaultManager.adjustVaultYield(
+        adjustVaultYieldOptions.vault,
+        adjustVaultYieldOptions.yieldPercentage,
+      );
+      break;
+    }
+    case "approveVault": {
+      const approveVaultOptions = commandLineArgs(
+        approveVaultOperationDefinitions,
+        {
+          argv: commandArgv,
+        },
+      );
+      const valid =
+        approveVaultOptions.vault &&
+        (approveVaultOptions.approve === "true" ||
+          approveVaultOptions.approve === "false");
+      if (!valid) {
+        throw commandLineErrorWithMessage(commandOptions.command);
+      }
+      await vaultManager.approveVault(
+        approveVaultOptions.vault,
+        approveVaultOptions.approve === "true",
+      );
+      break;
+    }
     case "cancelVault": {
       const cancelVaultOptions = commandLineArgs(
         simpleVaultOperationDefinitions,
@@ -90,7 +135,7 @@ async function main() {
     }
     case "subscribeVault": {
       const subscribeVaultOptions = commandLineArgs(
-        detailedVaultOperationDefinitions,
+        subscribeVaultOperationDefinitions,
         {
           argv: commandArgv,
         },
@@ -138,16 +183,76 @@ async function main() {
       if (!valid) {
         throw commandLineErrorWithMessage(commandOptions.command);
       }
-
       await vaultManager.withdrawVault(withdrawVaultOptions.vault, true);
       break;
     }
-    case "lpWithdrawAllVaults":
-      await vaultManager.withdrawAllVaults(true);
+    case "withdrawMultipleVaults": {
+      const withdrawVaultOptions = commandLineArgs(
+        multipleVaultOperationDefinitions,
+        {
+          argv: commandArgv,
+        },
+      );
+
+      const multipleVaults =
+        Array.isArray(withdrawVaultOptions.vault) &&
+        withdrawVaultOptions.vault.length > 0;
+
+      if (!multipleVaults) {
+        throw commandLineErrorWithMessage(commandOptions.command);
+      }
+
+      await vaultManager.withdrawMultipleVaults(
+        withdrawVaultOptions.vault,
+        false,
+        withdrawVaultOptions.bypassCheck,
+      );
       break;
-    case "subscriberWithdrawAllVaults":
-      await vaultManager.withdrawAllVaults(false);
+    }
+    case "lpWithdrawMultipleVaults": {
+      const withdrawVaultOptions = commandLineArgs(
+        multipleVaultOperationDefinitions,
+        {
+          argv: commandArgv,
+        },
+      );
+
+      const multipleVaults =
+        Array.isArray(withdrawVaultOptions.vault) &&
+        withdrawVaultOptions.vault.length > 0;
+
+      if (!multipleVaults) {
+        throw commandLineErrorWithMessage(commandOptions.command);
+      }
+      await vaultManager.withdrawMultipleVaults(
+        withdrawVaultOptions.vault,
+        true,
+        withdrawVaultOptions.bypassCheck,
+      );
       break;
+    }
+    case "cancelMultipleVaults": {
+      const cancelVaultOptions = commandLineArgs(
+        multipleVaultOperationDefinitions,
+        {
+          argv: commandArgv,
+        },
+      );
+
+      const multipleVaults =
+        Array.isArray(cancelVaultOptions.vault) &&
+        cancelVaultOptions.vault.length > 0;
+
+      if (!multipleVaults) {
+        throw commandLineErrorWithMessage(commandOptions.command);
+      }
+
+      await vaultManager.cancelMultipleVaults(
+        cancelVaultOptions.vault,
+        cancelVaultOptions.bypassCheck,
+      );
+      break;
+    }
     case "showConfig":
       await vaultManager.showConfig();
       break;
