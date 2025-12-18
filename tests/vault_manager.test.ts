@@ -14,6 +14,7 @@ import * as utils from "../src/utils";
 import FactoryABI from "../abi/Factory.json";
 import RouterAbi from "../abi/Router.json";
 import VaultABI from "../abi/Vault.json";
+import VaultCoreABI from "../abi/VaultCore.json";
 import IERC20ABI from "../abi/IERC20.json";
 import CollateralPoolABI from "../abi/CollateralPool.json";
 import IPythABI from "@pythnetwork/pyth-sdk-solidity/abis/IPyth.json";
@@ -229,9 +230,15 @@ describe("VaultManager createVault", () => {
     }),
     balanceOf: jest.fn().mockReturnValue(900000000000000000000000000n),
     name: jest.fn().mockReturnValue("ETH"),
-    createVault: jest.fn().mockReturnValue({
-      wait: mockCreateVaultWait,
-    }),
+    createVault: (() => {
+      const fn = jest.fn().mockReturnValue({
+        wait: mockCreateVaultWait,
+      });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
     getUpdateFee: jest.fn().mockReturnValue(1n),
     getPresetFeeParams: jest.fn().mockReturnValue({
       tradingFeeRate: 69000000000000000n,
@@ -241,9 +248,15 @@ describe("VaultManager createVault", () => {
       { minimumVolume: 4200000000n, feeRate: 42000000000000000n },
       { minimumVolume: 42000000000n, feeRate: 24000000000000000n },
     ]),
-    approveVault: jest.fn().mockReturnValue({
-      wait: mockApproveVaultWait,
-    }),
+    approveVault: (() => {
+      const fn = jest.fn().mockReturnValue({
+        wait: mockApproveVaultWait,
+      });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
   };
   test("create new buy low vault successfully", async () => {
     const spyContract = jest
@@ -289,6 +302,9 @@ describe("VaultManager createVault", () => {
         quoteToken: tradingPairConfig.quoteToken,
         yieldValue: "30000000000000000",
         useCollateralPool: false,
+        useNativeToken: false,
+        vaultSeriesVersion: 1,
+        signer: mockConfig.account,
       },
       [mockBinaryData],
       { value: 1n, gasLimit: 3000000 },
@@ -341,6 +357,9 @@ describe("VaultManager createVault", () => {
         quoteToken: tradingPairConfig.quoteToken,
         yieldValue: "20000000000000000",
         useCollateralPool: false,
+        useNativeToken: false,
+        vaultSeriesVersion: 1,
+        signer: mockConfig.account,
       },
       [mockBinaryData],
       { value: 1n, gasLimit: 3000000 },
@@ -387,6 +406,9 @@ describe("VaultManager createVault", () => {
         quoteToken: tradingPairConfig.quoteToken,
         yieldValue: "30000000000000000",
         useCollateralPool: true,
+        useNativeToken: false,
+        vaultSeriesVersion: 1,
+        signer: mockConfig.account,
       },
       [mockBinaryData],
       { value: 1n, gasLimit: 3000000 },
@@ -455,6 +477,29 @@ describe("VaultManager createVault", () => {
       }),
     ).rejects.toThrow("decimals is not set");
   });
+
+  test("should throw error when using custom signer with vault series version 1", async () => {
+    const createVaultOptionsWithSigner = {
+      ...mockBuyLowVaultOptions,
+      signer: "0x1234567890123456789012345678901234567890",
+    };
+
+    await expect(
+      vaultManager.createVault(createVaultOptionsWithSigner),
+    ).rejects.toThrow(
+      "Custom signer is not supported for vault series version 1",
+    );
+
+    // Also test with explicit vaultSeriesVersion = 1
+    await expect(
+      vaultManager.createVault({
+        ...createVaultOptionsWithSigner,
+        vaultSeriesVersion: 1,
+      }),
+    ).rejects.toThrow(
+      "Custom signer is not supported for vault series version 1",
+    );
+  });
 });
 
 describe("VaultManager cancelVault", () => {
@@ -483,9 +528,15 @@ describe("VaultManager cancelVault", () => {
       oraclePriceAtCreation: jest
         .fn()
         .mockReturnValue(tradingPairConfig.priceFeed.address),
-      lpCancel: jest.fn().mockReturnValue({
-        wait: mockCancelWait,
-      }),
+      lpCancel: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockCancelWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       approve: jest.fn().mockReturnValue({
         wait: mockApproveWait,
       }),
@@ -530,9 +581,15 @@ describe("VaultManager subscribeVault", () => {
       investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
       linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
       decimals: jest.fn().mockReturnValue(6),
-      deposit: jest.fn().mockReturnValue({
-        wait: mockDepositWait,
-      }),
+      deposit: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockDepositWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       approve: jest.fn().mockReturnValue({
         wait: mockApproveWait,
       }),
@@ -562,7 +619,7 @@ describe("VaultManager subscribeVault", () => {
     expect(spyContract).toHaveBeenNthCalledWith(
       1,
       mockVaultAddress,
-      VaultABI,
+      VaultCoreABI,
       mockSigner,
     );
 
@@ -602,6 +659,7 @@ describe("VaultManager subscribeVault", () => {
     expect(mockContract.deposit).toHaveBeenCalledWith(
       mockVaultAddress,
       "1000000",
+      0,
       [Buffer.from(mockHexData, "hex")],
       { value: 1n },
     );
@@ -633,8 +691,20 @@ describe("VaultManager withdrawVault", () => {
     expiry: jest.fn().mockReturnValue(mockBuyLowVaultOptions.expiry),
     balances: jest.fn().mockReturnValue("1"),
     balanceOf: jest.fn().mockReturnValue("1"),
-    withdraw: jest.fn().mockReturnValue(mockWithdrawWait),
-    lpWithdraw: jest.fn().mockReturnValue(mockWithdrawWait),
+    withdraw: (() => {
+      const fn = jest.fn().mockReturnValue(mockWithdrawWait);
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
+    lpWithdraw: (() => {
+      const fn = jest.fn().mockReturnValue(mockWithdrawWait);
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
     getUpdateFee: jest.fn().mockReturnValue({ mockGetUpdateFeeWait }),
   };
 
@@ -853,10 +923,20 @@ describe("VaultManager withdrawMultipleVaults", () => {
     .mockResolvedValue(mockWaitResult);
 
   const mockVaultBatchManagerContract = {
-    lpWithdrawVaults: jest
-      .fn()
-      .mockReturnValue({ wait: mockLpWithdrawVaultsWait }),
-    withdrawVaults: jest.fn().mockReturnValue({ wait: mockWithdrawVaultsWait }),
+    lpWithdrawVaults: (() => {
+      const fn = jest.fn().mockReturnValue({ wait: mockLpWithdrawVaultsWait });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
+    withdrawVaults: (() => {
+      const fn = jest.fn().mockReturnValue({ wait: mockWithdrawVaultsWait });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
   };
 
   const mockPythPriceFeedContract = {
@@ -1108,6 +1188,7 @@ describe("VaultManager listAllVaults", () => {
 
     const mockContract = {
       getDeployedVaults: jest.fn().mockReturnValue(mockVaults),
+      getDeployedVaultCount: jest.fn().mockReturnValue(5),
       owner: jest
         .fn()
         .mockReturnValueOnce(lpAddress)
@@ -1128,7 +1209,25 @@ describe("VaultManager listAllVaults", () => {
       mockSigner,
     );
 
-    expect(mockConsoleLog).toHaveBeenCalledWith(mockVaults.slice(0, 2));
+    expect(mockContract.getDeployedVaults).toHaveBeenCalledWith(0n, 5n);
+
+    const expectedVaults = mockVaults.slice(0, 2);
+    const expectedFormattedAddresses = [
+      "[",
+      ...expectedVaults.map((address, idx) => {
+        const suffix = idx === expectedVaults.length - 1 ? "" : ",";
+        return `  '${address}'${suffix}`;
+      }),
+      "]",
+    ].join("\n");
+
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      "Requesting vaults 0 to 4 (total deployed: 5).",
+    );
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `Vaults owned by ${lpAddress}:`,
+    );
+    expect(mockConsoleLog).toHaveBeenCalledWith(expectedFormattedAddresses);
   });
 });
 
@@ -1244,9 +1343,13 @@ describe("VaultManager adjustVaultYield", () => {
       .fn<() => Promise<object>>()
       .mockResolvedValue({ status: 1 });
     const mockContract: Record<string, object> = {
-      adjustYieldValue: jest
-        .fn()
-        .mockReturnValue({ wait: mockAdjustYieldWait }),
+      adjustYieldValue: (() => {
+        const fn = jest.fn().mockReturnValue({ wait: mockAdjustYieldWait });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       useCollateralPool: jest.fn().mockReturnValue(true),
       isBuyLow: jest.fn().mockReturnValue(true),
       investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
@@ -1299,9 +1402,13 @@ describe("VaultManager adjustVaultYield", () => {
         investmentTokenAmount: 1744200000n, // 174.42 USDC
       }); // remainingDeposit
     const mockContract: Record<string, object> = {
-      adjustYieldValue: jest
-        .fn()
-        .mockReturnValue({ wait: mockAdjustYieldWait }),
+      adjustYieldValue: (() => {
+        const fn = jest.fn().mockReturnValue({ wait: mockAdjustYieldWait });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       useCollateralPool: jest.fn().mockReturnValue(false),
       linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
       investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
@@ -1369,9 +1476,15 @@ describe("VaultManager approveVault for collateral pool", () => {
     mockApproveVaultInCollateralPoolWait = jest
       .fn<() => Promise<object>>()
       .mockResolvedValue({ status: 1 });
-    mockApproveVault = jest
-      .fn()
-      .mockReturnValue({ wait: mockApproveVaultInCollateralPoolWait });
+    mockApproveVault = (() => {
+      const fn = jest
+        .fn()
+        .mockReturnValue({ wait: mockApproveVaultInCollateralPoolWait });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })();
     mockCollateralPoolContract = {
       approveVault: mockApproveVault, // mock approveVault in collateral pool
       useCollateralPool: jest.fn().mockReturnValue(true), // mock useCollateralPool in vault

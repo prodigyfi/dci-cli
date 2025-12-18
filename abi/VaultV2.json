@@ -1,10 +1,5 @@
 [
   {
-    "type": "constructor",
-    "inputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
     "type": "receive",
     "stateMutability": "payable"
   },
@@ -30,25 +25,6 @@
         "name": "",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "balances",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "investmentTokenBalance",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -100,10 +76,28 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract ICollateralPool"
+        "internalType": "contract ICollateralPoolV2"
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "consumeNonce",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -116,6 +110,59 @@
       },
       {
         "name": "depositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minYieldValue",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceUpdateData",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_yieldValue",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "minYieldValue",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -150,6 +197,25 @@
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "deposited",
+    "inputs": [
+      {
+        "name": "depositKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "deposited",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -324,6 +390,11 @@
             "name": "oraclePriceAtCreation",
             "type": "int256",
             "internalType": "int256"
+          },
+          {
+            "name": "signer",
+            "type": "address",
+            "internalType": "address"
           }
         ]
       }
@@ -411,25 +482,6 @@
   },
   {
     "type": "function",
-    "name": "linkedTokenBalances",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "linkedTokenBalance",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "lpCancel",
     "inputs": [],
     "outputs": [],
@@ -490,19 +542,6 @@
   },
   {
     "type": "function",
-    "name": "lpWithdrawn",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "minConfidenceRatio",
     "inputs": [],
     "outputs": [
@@ -555,71 +594,6 @@
   },
   {
     "type": "function",
-    "name": "ownerDepositFeeAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ownerDepositInvestmentTokenAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ownerDepositLinkedTokenAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ownerLockedInvestmentTokenAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ownerLockedLinkedTokenAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "priceFeed",
     "inputs": [],
     "outputs": [
@@ -666,6 +640,58 @@
   },
   {
     "type": "function",
+    "name": "setSignatureRequired",
+    "inputs": [
+      {
+        "name": "_required",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setSigner",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "signatureRequired",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "signer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "state",
     "inputs": [],
     "outputs": [
@@ -702,19 +728,6 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "useCollateralPool",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -805,18 +818,7 @@
         ]
       }
     ],
-    "outputs": [
-      {
-        "name": "investmentTokenAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "linkedTokenAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
+    "outputs": [],
     "stateMutability": "payable"
   },
   {
@@ -861,19 +863,21 @@
         ]
       }
     ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawalUnlockTime",
+    "inputs": [],
     "outputs": [
       {
-        "name": "investmentTokenAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "linkedTokenAmount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "payable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -922,6 +926,12 @@
         "type": "int256",
         "indexed": false,
         "internalType": "int256"
+      },
+      {
+        "name": "yieldValue",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -947,12 +957,6 @@
         "type": "int256",
         "indexed": false,
         "internalType": "int256"
-      },
-      {
-        "name": "yieldValue",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1041,6 +1045,25 @@
   },
   {
     "type": "event",
+    "name": "NonceConsumed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OwnershipTransferred",
     "inputs": [
       {
@@ -1051,6 +1074,45 @@
       },
       {
         "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetOwner",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetSignatureRequired",
+    "inputs": [
+      {
+        "name": "required",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetSigner",
+    "inputs": [
+      {
+        "name": "signer",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1082,6 +1144,38 @@
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureLength",
+    "inputs": [
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureS",
+    "inputs": [
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ExcessFeeRefundFailed",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1130,5 +1224,26 @@
         "internalType": "int256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ZeroAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroYieldValue",
+    "inputs": []
   }
 ]

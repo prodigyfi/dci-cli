@@ -25,3 +25,6 @@ coverags.json
 Session.vim
 Sessionx.vim
 
+*.log
+
+keystore/
