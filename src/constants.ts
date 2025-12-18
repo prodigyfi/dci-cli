@@ -6,6 +6,8 @@ export const createVaultOperationDefinitions = [
   { name: "expiry", alias: "e", type: Number },
   { name: "yieldPercentage", alias: "y", type: String },
   { name: "tradingPair", alias: "t", type: String },
+  { name: "signer", alias: "s", type: String },
+  { name: "vaultSeriesVersion", type: Number },
 ];
 
 export const subscribeVaultOperationDefinitions = [
@@ -34,4 +36,6 @@ export const multipleVaultOperationDefinitions = [
 
 export const addressOperationDefinitions = [
   { name: "address", alias: "a", type: String },
+  { name: "start", alias: "s", type: Number },
+  { name: "count", alias: "c", type: Number },
 ];

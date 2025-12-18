@@ -12,6 +12,9 @@ export type CreateVaultParamsStruct = {
   isBuyLow: boolean;
   quantity: string;
   useCollateralPool: boolean;
+  useNativeToken: boolean;
+  vaultSeriesVersion: number;
+  signer: string;
 };
 
 export function calculateTradingFee(

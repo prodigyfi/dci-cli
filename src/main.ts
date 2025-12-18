@@ -264,13 +264,14 @@ async function main() {
         },
       );
 
-      const valid = listAllVaultsOptions.address;
-
-      if (!valid) {
+      if (!listAllVaultsOptions.address) {
         throw commandLineErrorWithMessage(commandOptions.command);
       }
 
-      await vaultManager.listAllVaults(listAllVaultsOptions.address);
+      await vaultManager.listAllVaults(listAllVaultsOptions.address, {
+        start: listAllVaultsOptions.start,
+        count: listAllVaultsOptions.count,
+      });
       break;
     }
     case "showVault": {

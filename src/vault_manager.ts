@@ -23,8 +23,16 @@ import FactoryABI from "../abi/Factory.json";
 import RouterABI from "../abi/Router.json";
 import VaultABI from "../abi/Vault.json";
 import IERC20ABI from "../abi/IERC20.json";
+import VaultCore from "../abi/VaultCore.json";
 import CollateralPoolABI from "../abi/CollateralPool.json";
 import VaultBatchManagerABI from "../abi/VaultBatchManager.json";
+
+const DEFAULT_VAULT_FETCH_COUNT = 100;
+
+type VaultRangeOptions = {
+  start?: number;
+  count?: number;
+};
 
 export class VaultManager {
   config: BlockchainConfig;
@@ -88,6 +96,34 @@ export class VaultManager {
     }
     if (!this.config.vaultBatchManager) {
       throw new Error("vaultBatchManager is not set");
+    }
+  }
+
+  private async _simulateTransaction(
+    contractMethod: () => Promise<unknown>,
+  ): Promise<void> {
+    // Disable multicall for staticCall to avoid parsing issues with custom errors
+    const originalMulticallState = this.provider.isMulticallEnabled;
+    this.provider.isMulticallEnabled = false;
+
+    try {
+      await contractMethod();
+      console.log(`Transaction simulation passed`);
+    } catch (simulationError: unknown) {
+      console.error(`Transaction simulation failed`);
+      const error = simulationError as {
+        reason?: string;
+        message?: string;
+        data?: string;
+      };
+      console.error("Revert reason:", error.reason || error.message);
+      if (error.data) {
+        console.error("Error data:", error.data);
+      }
+      throw simulationError;
+    } finally {
+      // Restore original multicall state
+      this.provider.isMulticallEnabled = originalMulticallState;
     }
   }
 
@@ -186,6 +222,14 @@ export class VaultManager {
     const isBuyLow = !!createVaultOptions.isBuyLow;
     const useCollateralPool = !!createVaultOptions.useCollateralPool;
     const tradingPair = createVaultOptions.tradingPair;
+    const useNativeToken = !!createVaultOptions.useNativeToken;
+    const vaultSeriesVersion = createVaultOptions.vaultSeriesVersion || 1;
+
+    if (vaultSeriesVersion === 1 && createVaultOptions.signer) {
+      throw new Error(
+        "Custom signer is not supported for vault series version 1",
+      );
+    }
 
     this._checkTradingPairSettings(tradingPair);
 
@@ -221,8 +265,9 @@ export class VaultManager {
       BigInt(quoteTokenDecimals) -
       BigInt(baseTokenDecimals);
 
+    const ownerAddress = await this.signer.getAddress();
     const vaultParams: CreateVaultParamsStruct = {
-      owner: await this.signer.getAddress(),
+      owner: ownerAddress,
       baseToken: baseTokenAddress,
       quoteToken: quoteTokenAddress,
       expiry: createVaultOptions.expiry,
@@ -240,8 +285,10 @@ export class VaultManager {
         investmentTokenDecimals,
       ).toString(),
       useCollateralPool: useCollateralPool,
+      vaultSeriesVersion: vaultSeriesVersion,
+      useNativeToken: useNativeToken,
+      signer: createVaultOptions.signer || ownerAddress,
     };
-
     // Prepare for trading fee
     const linkedPriceBN = parseUnits(
       createVaultOptions.linkedPrice,
@@ -308,6 +355,13 @@ export class VaultManager {
 
     const updateFee = await pythPriceFeed.getUpdateFee(binaryData);
 
+    await this._simulateTransaction(() =>
+      factory.createVault.staticCall(vaultParams, binaryData, {
+        value: updateFee,
+        gasLimit: 3000000,
+      }),
+    );
+
     const tx = await factory.createVault(vaultParams, binaryData, {
       value: updateFee,
       gasLimit: 3000000,
@@ -336,7 +390,7 @@ export class VaultManager {
       const vaultAddress = parsedLog.args.vaultAddress;
       console.log(`Vault address: ${vaultAddress}`);
 
-      if (useCollateralPool) {
+      if (useCollateralPool && vaultSeriesVersion === 1) {
         console.log(
           "Waiting for blockchain state to settle before CollateralPool approval...",
         );
@@ -351,6 +405,10 @@ export class VaultManager {
         // Retry CollateralPool approval
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
+            await this._simulateTransaction(() =>
+              collateralPool.approveVault.staticCall(vaultAddress, true),
+            );
+
             const tx = await collateralPool.approveVault(vaultAddress, true);
             const result: ContractTransactionReceipt = await tx.wait();
             if (result.status !== 1) {
@@ -470,6 +528,10 @@ export class VaultManager {
     }
 
     try {
+      await this._simulateTransaction(() =>
+        vault.adjustYieldValue.staticCall(yieldValue),
+      );
+
       const tx = await vault.adjustYieldValue(yieldValue);
       const result: ContractTransactionReceipt = await tx.wait();
       if (result.status == 1) {
@@ -499,6 +561,11 @@ export class VaultManager {
         console.error(`Vault ${vaultAddress} is not using collateral pool`);
         return;
       }
+
+      await this._simulateTransaction(() =>
+        collateralPool.approveVault.staticCall(vaultAddress, approve),
+      );
+
       const tx = await collateralPool.approveVault(vaultAddress, approve);
       const result: ContractTransactionReceipt = await tx.wait();
       if (result.status == 1) {
@@ -522,6 +589,8 @@ export class VaultManager {
     const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
 
     try {
+      await this._simulateTransaction(() => vault.lpCancel.staticCall());
+
       const tx = await vault.lpCancel();
       const result: ContractTransactionReceipt = await tx.wait();
 
@@ -537,7 +606,7 @@ export class VaultManager {
   }
 
   async subscribeVault(vaultAddress: string, amount: string) {
-    const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
+    const vault = new ethers.Contract(vaultAddress, VaultCore, this.signer);
     this.provider.isMulticallEnabled = true;
     const [isBuyLow, investmentTokenAddress, linkedTokenAddress] =
       await Promise.all([
@@ -579,6 +648,7 @@ export class VaultManager {
     const updateData = updatePriceData && updatePriceData.binary.data;
     const binaryData = [updateData && Buffer.from(updateData[0], "hex")];
     const updateFee = await pythPriceFeed.getUpdateFee(binaryData);
+    const minYieldValue = !!vault.minYieldValue || 0;
 
     try {
       const router = new ethers.Contract(
@@ -586,9 +656,21 @@ export class VaultManager {
         RouterABI,
         this.signer,
       );
+
+      await this._simulateTransaction(() =>
+        router.deposit.staticCall(
+          vaultAddress,
+          subscribeAmount,
+          minYieldValue,
+          binaryData,
+          { value: updateFee },
+        ),
+      );
+
       const tx = await router.deposit(
         vaultAddress,
         subscribeAmount,
+        minYieldValue,
         binaryData,
         { value: updateFee },
       );
@@ -696,6 +778,13 @@ export class VaultManager {
             return;
           }
         }
+
+        await this._simulateTransaction(() =>
+          vault.lpWithdraw.staticCall(binaryData, getPriceOptions, {
+            value: updateFee,
+          }),
+        );
+
         const tx = await vault.lpWithdraw(binaryData, getPriceOptions, {
           value: updateFee,
         });
@@ -709,6 +798,13 @@ export class VaultManager {
           );
           return;
         }
+
+        await this._simulateTransaction(() =>
+          vault.withdraw.staticCall(binaryData, getPriceOptions, {
+            value: updateFee,
+          }),
+        );
+
         const tx = await vault.withdraw(binaryData, getPriceOptions, {
           value: updateFee,
         });
@@ -825,6 +921,17 @@ export class VaultManager {
         let result = null;
         try {
           if (isLp) {
+            await this._simulateTransaction(() =>
+              vaultBatchManager.lpWithdrawVaults.staticCall(
+                vaults,
+                binaryData,
+                getPriceOptions,
+                {
+                  value: totalUpdateFee,
+                },
+              ),
+            );
+
             const tx = await vaultBatchManager.lpWithdrawVaults(
               vaults,
               binaryData,
@@ -835,6 +942,17 @@ export class VaultManager {
             );
             result = await tx.wait();
           } else {
+            await this._simulateTransaction(() =>
+              vaultBatchManager.withdrawVaults.staticCall(
+                vaults,
+                binaryData,
+                getPriceOptions,
+                {
+                  value: totalUpdateFee,
+                },
+              ),
+            );
+
             const tx = await vaultBatchManager.withdrawVaults(
               vaults,
               binaryData,
@@ -1070,6 +1188,10 @@ export class VaultManager {
       );
 
       try {
+        await this._simulateTransaction(() =>
+          vaultBatchManager.lpCancelVaults.staticCall(vaultAddresses),
+        );
+
         const tx = await vaultBatchManager.lpCancelVaults(vaultAddresses);
         const result = await tx.wait();
 
@@ -1168,6 +1290,10 @@ export class VaultManager {
 
     // Cancel all filtered vaults using batch manager
     try {
+      await this._simulateTransaction(() =>
+        vaultBatchManager.lpCancelVaults.staticCall(filteredVaultAddresses),
+      );
+
       const tx = await vaultBatchManager.lpCancelVaults(filteredVaultAddresses);
       const result = await tx.wait();
 
@@ -1192,34 +1318,125 @@ export class VaultManager {
     console.log(JSON.stringify(this.config, null, 2));
   }
 
-  async listAllVaults(lpAddress: string) {
+  async listAllVaults(lpAddress: string, rangeOptions?: VaultRangeOptions) {
     const factory = new ethers.Contract(
       this.config.factory,
       FactoryABI,
       this.signer,
     );
-    const vaults = await factory.getDeployedVaults();
 
-    const lpVaultAddresses = (
-      await Promise.all(
-        vaults.map((vaultAddress: string) => {
-          return (async () => {
-            const vault = new ethers.Contract(
-              vaultAddress,
-              VaultABI,
-              this.signer,
-            );
-            const owner = await vault.owner();
-            return [owner, vaultAddress];
-          })();
-        }),
-      )
-    )
-      .filter((arr: string[]) => arr[0] === lpAddress)
-      .map((arr) => arr[1]);
+    const totalVaultsFromChain = await factory.getDeployedVaultCount();
+    const totalVaults = Number(totalVaultsFromChain);
+
+    if (totalVaults === 0) {
+      console.log("No vaults have been deployed yet.");
+      return;
+    }
+
+    const startFromOptions = rangeOptions?.start;
+    const countFromOptions = rangeOptions?.count;
+
+    if (
+      startFromOptions !== undefined &&
+      (!Number.isInteger(startFromOptions) || startFromOptions < 0)
+    ) {
+      throw new Error("start must be a non-negative integer");
+    }
+
+    if (
+      countFromOptions !== undefined &&
+      (!Number.isInteger(countFromOptions) || countFromOptions <= 0)
+    ) {
+      throw new Error("count must be a positive integer");
+    }
+
+    const resolveStartIndex = () => {
+      if (startFromOptions !== undefined) {
+        return startFromOptions;
+      }
+      if (countFromOptions !== undefined) {
+        return Math.max(totalVaults - countFromOptions, 0);
+      }
+      return 0;
+    };
+
+    const startIndex = resolveStartIndex();
+
+    if (startIndex >= totalVaults) {
+      console.log(
+        `Requested start index (${startIndex}) is beyond the total deployed vault count (${totalVaults}).`,
+      );
+      return;
+    }
+
+    const availableVaults = totalVaults - startIndex;
+    let length =
+      countFromOptions !== undefined
+        ? countFromOptions
+        : startFromOptions !== undefined
+          ? Math.min(DEFAULT_VAULT_FETCH_COUNT, availableVaults)
+          : availableVaults;
+
+    length = Math.min(length, availableVaults);
+
+    if (length === 0) {
+      console.log("No vaults fall into the requested range.");
+      return;
+    }
+
+    const endIndex = startIndex + length - 1;
+    console.log(
+      `Requesting vaults ${startIndex} to ${endIndex} (total deployed: ${totalVaults}).`,
+    );
+
+    const vaults = await factory.getDeployedVaults(
+      BigInt(startIndex),
+      BigInt(length),
+    );
+
+    this.provider.isMulticallEnabled = true;
+    const vaultEntries = await Promise.all(
+      vaults.map((vaultAddress: string, idx: number) => {
+        return (async () => {
+          const vault = new ethers.Contract(
+            vaultAddress,
+            VaultABI,
+            this.signer,
+          );
+          const owner = await vault.owner();
+          return {
+            owner,
+            vaultAddress,
+            index: startIndex + idx,
+          };
+        })();
+      }),
+    );
+    this.provider.isMulticallEnabled = false;
+
+    const lpVaultEntries = vaultEntries.filter(
+      (entry) => entry.owner === lpAddress,
+    );
+
+    if (lpVaultEntries.length === 0) {
+      console.log(
+        `No vaults owned by ${lpAddress} within the requested range (${startIndex}-${endIndex}).`,
+      );
+      return;
+    }
+
+    const lpVaultAddresses = lpVaultEntries.map((entry) => entry.vaultAddress);
+    const formattedAddresses = [
+      "[",
+      ...lpVaultAddresses.map((address, idx) => {
+        const suffix = idx === lpVaultAddresses.length - 1 ? "" : ",";
+        return `  '${address}'${suffix}`;
+      }),
+      "]",
+    ].join("\n");
 
     console.log(`Vaults owned by ${lpAddress}:`);
-    console.log(lpVaultAddresses);
+    console.log(formattedAddresses);
   }
 
   async showVault(vaultAddress: string) {

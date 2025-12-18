@@ -22,7 +22,7 @@ npm i
 Run the program `npx ts-node ./src/main.ts "<Bera Testnet|Bera Mainnet>" <COMMAND>`.
 
 - `COMMAND`:
-  - `createVault --tradingPair <trading pair> --linkedPrice <price> --quantity <quantity> --expiry <UNIX epoch> --yieldPercentage <yield rate> [--isBuyLow] [--useCollateralPool]`: Create a vault with command line arguments
+  - `createVault --tradingPair <trading pair> --linkedPrice <price> --quantity <quantity> --expiry <UNIX epoch> --yieldPercentage <yield rate> [--isBuyLow] [--useCollateralPool] [--vaultSeriesVersion <version>] [--signer <address>]`: Create a vault with command line arguments. The `--vaultSeriesVersion` defaults to 1 if not specified. The `--signer` option is only supported for vault series version 2+; if not specified, it defaults to the owner address.
   - `cancelVault --vault <vault address>`: Cancel a specific vault
   - `cancelMultipleVaults --vault <vault address> [--bypassCheck]`: Cancel multiple vaults in batch
   - `approveVault --vault <vault address> --approve <true|false>`: Approve a specific to use collateral pool or not
@@ -33,7 +33,10 @@ Run the program `npx ts-node ./src/main.ts "<Bera Testnet|Bera Mainnet>" <COMMAN
   - `withdrawMultipleVaults --vault <vault address> [--bypassCheck]`: Withdraw multiple vaults with same trading pair and expiry
   - `lpWithdrawMultipleVaults --vault <vault address> [--bypassCheck]`: Withdraw multiple vaults by the LP with same trading pair and expiry
   - `showConfig`: display settings
-  - `listAllVaults --address <LP address>`: List all vaults that created by the LP
+  - `listAllVaults --address <LP address> [--start <start index>] [--count <number of vaults>]`: List vaults created by the LP. With no extra flags the command returns every deployed vault owned by the address.
+    - `start` is a zero-based index of the first vault to inspect; `count` is how many consecutive vaults to read from that index.
+    - Leave `start` unset but pass `--count N` to fetch the latest `N` vaults: `listAllVaults --address <LP> --count 20`.
+    - Specify both to page through history, e.g. `listAllVaults --address <LP> --start 200 --count 50`.
   - `showVault --vault <vault address>`: display vault parameters
 
 ## Create vaults in batch using `batch_runner.ts`

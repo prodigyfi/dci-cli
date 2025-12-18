@@ -12,6 +12,8 @@ const networkOptions = [
   "Base Mainnet",
   "Bera Testnet",
   "Bera Mainnet",
+  "Ethereum Testnet",
+  "Ethereum Mainnet",
 ];
 
 const tradingPairOptions = [

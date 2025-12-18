@@ -19,19 +19,6 @@
   },
   {
     "type": "function",
-    "name": "addVaultToRegistry",
-    "inputs": [
-      {
-        "name": "vault",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "approveVault",
     "inputs": [
       {
@@ -69,55 +56,8 @@
   },
   {
     "type": "function",
-    "name": "collateralBalances",
-    "inputs": [
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "deposit",
     "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "deposit",
-    "inputs": [
-      {
-        "name": "to",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "token",
         "type": "address",
@@ -147,29 +87,28 @@
   },
   {
     "type": "function",
-    "name": "getCollateralBalance",
+    "name": "fillShortfall",
     "inputs": [
       {
         "name": "token",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [
+      },
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "includeAllObligations",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "getDepositorCollateralBalance",
+    "name": "getTokenShortfall",
     "inputs": [
       {
-        "name": "depositor",
+        "name": "lp",
         "type": "address",
         "internalType": "address"
       },
@@ -177,6 +116,11 @@
         "name": "token",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "includeAllObligations",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [
@@ -203,6 +147,65 @@
   },
   {
     "type": "function",
+    "name": "lpTokenAccounts",
+    "inputs": [
+      {
+        "name": "lp",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "lpOwnedBalance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "preExecutionPrincipal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "preExecutionYield",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "withdrawablePrincipal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "withdrawableYield",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "borrowedFromUsers",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actualBalance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lpNetCashFlow",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "owner",
     "inputs": [],
     "outputs": [
@@ -216,6 +219,71 @@
   },
   {
     "type": "function",
+    "name": "previewUserBalance",
+    "inputs": [
+      {
+        "name": "vault",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "state",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "linkedTokenTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "investmentTokenTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "processUserDeposit",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "processUserWithdrawal",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "proxiableUUID",
     "inputs": [],
     "outputs": [
@@ -226,6 +294,24 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerVault",
+    "inputs": [
+      {
+        "name": "creator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_vault",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -255,12 +341,43 @@
   },
   {
     "type": "function",
+    "name": "seriesVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "setFactory",
     "inputs": [
       {
         "name": "_factory",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setWhitelistedLP",
+    "inputs": [
+      {
+        "name": "lp",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "whitelisted",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -299,6 +416,19 @@
   },
   {
     "type": "function",
+    "name": "updateBalanceAfterExecution",
+    "inputs": [
+      {
+        "name": "state",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "upgradeToAndCall",
     "inputs": [
       {
@@ -317,25 +447,41 @@
   },
   {
     "type": "function",
-    "name": "useCollateral",
+    "name": "userVaultBalance",
     "inputs": [
       {
-        "name": "token",
+        "name": "vault",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "principal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "linkedTokenTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "investmentTokenYield",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "vaultOwners",
+    "name": "vaultInfos",
     "inputs": [
       {
         "name": "vault",
@@ -348,6 +494,94 @@
         "name": "owner",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "investmentToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "linkedToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "feeReceiver",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "linkedPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "tradingFeeRate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "expiry",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "oraclePriceAtCreation",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "isBuyLow",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "vaultPreExecutionAmounts",
+    "inputs": [
+      {
+        "name": "vault",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "principal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "linkedTokenTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "investmentTokenYield",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "whitelistedLP",
+    "inputs": [
+      {
+        "name": "liquidityProvider",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "whitelisted",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -391,87 +625,6 @@
   },
   {
     "type": "event",
-    "name": "CollateralDeposited",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CollateralUsed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "vault",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CollateralWithdrawn",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Initialized",
     "inputs": [
       {
@@ -504,6 +657,73 @@
   },
   {
     "type": "event",
+    "name": "UpdateLpTokenAccount",
+    "inputs": [
+      {
+        "name": "lp",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct LpTokenAccount",
+        "components": [
+          {
+            "name": "lpOwnedBalance",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "preExecutionPrincipal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "preExecutionYield",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "withdrawablePrincipal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "withdrawableYield",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "borrowedFromUsers",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "actualBalance",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lpNetCashFlow",
+            "type": "int256",
+            "internalType": "int256"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Upgraded",
     "inputs": [
       {
@@ -527,6 +747,25 @@
       },
       {
         "name": "approved",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "WhitelistedLP",
+    "inputs": [
+      {
+        "name": "lp",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "whitelisted",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
@@ -605,6 +844,28 @@
   },
   {
     "type": "error",
+    "name": "SafeCastOverflowedIntToUint",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SafeCastOverflowedUintToInt",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SafeERC20FailedOperation",
     "inputs": [
       {
@@ -633,11 +894,6 @@
   {
     "type": "error",
     "name": "ZeroAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroAmount",
     "inputs": []
   }
 ]
