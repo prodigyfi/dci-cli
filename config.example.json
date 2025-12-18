@@ -166,6 +166,7 @@
     "pythAggregator": "0xF50c99923bf0077fAF298Cc1dB089318311cF3ee",
     "pythPriceFeed": "0x4305FB66699C3B2702D4d05CF36551390A4c69C6",
     "collateralPool": "0x18D87BB647cf70065e9Eb286957AD7681f4373d7",
+    "collateralPoolV2": "0xb2d5c91F1e71078672F55C63ac0BBC3A9B1b3889",
     "tradingPairs": {
       "WBTC-USDC": {
         "baseToken": " 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
