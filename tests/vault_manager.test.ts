@@ -30,6 +30,7 @@ const mockConfig = {
   pythAggregator: "0x8888888888888888888888888888888888888888",
   pythPriceFeed: "0x9999999999999999999999999999999999999999",
   collateralPool: "0x1010101010101010101010101010101010101010",
+  collateralPoolV2: "0x2020202020202020202020202020202020202020",
   tradingPairs: {
     "WETH-USDC": {
       baseToken: "0x5555555555555555555555555555555555555555",
@@ -951,6 +952,7 @@ describe("VaultManager withdrawMultipleVaults", () => {
     state: jest.fn().mockReturnValue(1),
     balances: jest.fn().mockReturnValue("100"),
     isBuyLow: jest.fn().mockReturnValue(true),
+    version: jest.fn().mockReturnValue(8), // Series 1 vault, version 8
     useCollateralPool: jest.fn().mockReturnValue(false),
     depositTotal: jest.fn().mockReturnValue("100"),
   };
@@ -1350,6 +1352,7 @@ describe("VaultManager adjustVaultYield", () => {
           .mockImplementation(() => Promise.resolve());
         return fn;
       })(),
+      version: jest.fn().mockReturnValue(208), // Series 2 vault, version 208 (2.08)
       useCollateralPool: jest.fn().mockReturnValue(true),
       isBuyLow: jest.fn().mockReturnValue(true),
       investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
@@ -1409,6 +1412,7 @@ describe("VaultManager adjustVaultYield", () => {
           .mockImplementation(() => Promise.resolve());
         return fn;
       })(),
+      version: jest.fn().mockReturnValue(8), // Series 1 vault, version 8 (1.08)
       useCollateralPool: jest.fn().mockReturnValue(false),
       linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
       investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
@@ -1469,7 +1473,6 @@ describe("VaultManager approveVault for collateral pool", () => {
   let mockApproveVault: jest.Mock;
   let mockApproveVaultInCollateralPoolWait: jest.Mock;
   let mockCollateralPoolContract: Record<string, object>;
-  let spyContract;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -1487,21 +1490,60 @@ describe("VaultManager approveVault for collateral pool", () => {
     })();
     mockCollateralPoolContract = {
       approveVault: mockApproveVault, // mock approveVault in collateral pool
-      useCollateralPool: jest.fn().mockReturnValue(true), // mock useCollateralPool in vault
     };
-    spyContract = jest
-      .spyOn(ethers, "Contract")
-      .mockReturnValue(
-        mockCollateralPoolContract as unknown as ethers.Contract,
-      );
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  test("should call approveVault with true and log success", async () => {
+  test("should call approveVault with true for series 2 vault using collateralPoolV2", async () => {
+    const mockVaultContract = {
+      version: jest.fn().mockReturnValue(208), // Series 2 vault, version 208
+      useCollateralPool: jest.fn().mockReturnValue(true),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValueOnce(mockVaultContract as unknown as ethers.Contract)
+      .mockReturnValueOnce(
+        mockCollateralPoolContract as unknown as ethers.Contract,
+      );
+
     await vaultManager.approveVault(mockVaultAddress, true);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockVaultAddress,
+      VaultABI,
+      mockSigner,
+    );
+    expect(spyContract).toHaveBeenCalledWith(
+      mockConfig.collateralPoolV2,
+      CollateralPoolABI,
+      mockSigner,
+    );
+    expect(mockApproveVault).toHaveBeenCalledWith(mockVaultAddress, true);
+    expect(mockConsoleLog).toHaveBeenCalledWith(
+      `CollateralPool approval for vault ${mockVaultAddress} succeeded!`,
+    );
+  });
+
+  test("should call approveVault with true for series 1 vault using collateralPool", async () => {
+    const mockVaultContract = {
+      version: jest.fn().mockReturnValue(8), // Series 1 vault, version 8
+      useCollateralPool: jest.fn().mockReturnValue(true),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValueOnce(mockVaultContract as unknown as ethers.Contract)
+      .mockReturnValueOnce(
+        mockCollateralPoolContract as unknown as ethers.Contract,
+      );
+
+    await vaultManager.approveVault(mockVaultAddress, true);
+    expect(spyContract).toHaveBeenCalledWith(
+      mockVaultAddress,
+      VaultABI,
+      mockSigner,
+    );
     expect(spyContract).toHaveBeenCalledWith(
       mockConfig.collateralPool,
       CollateralPoolABI,
@@ -1514,9 +1556,20 @@ describe("VaultManager approveVault for collateral pool", () => {
   });
 
   test("should call approveVault with false and log success", async () => {
+    const mockVaultContract = {
+      version: jest.fn().mockReturnValue(208), // Series 2 vault, version 208
+      useCollateralPool: jest.fn().mockReturnValue(true),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValueOnce(mockVaultContract as unknown as ethers.Contract)
+      .mockReturnValueOnce(
+        mockCollateralPoolContract as unknown as ethers.Contract,
+      );
+
     await vaultManager.approveVault(mockVaultAddress, false);
     expect(spyContract).toHaveBeenCalledWith(
-      mockConfig.collateralPool,
+      mockConfig.collateralPoolV2,
       CollateralPoolABI,
       mockSigner,
     );
@@ -1530,9 +1583,20 @@ describe("VaultManager approveVault for collateral pool", () => {
     mockApproveVaultInCollateralPoolWait.mockImplementation(() => {
       throw { shortMessage: "fail" };
     });
+    const mockVaultContract = {
+      version: jest.fn().mockReturnValue(208), // Series 2 vault, version 208
+      useCollateralPool: jest.fn().mockReturnValue(true),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValueOnce(mockVaultContract as unknown as ethers.Contract)
+      .mockReturnValueOnce(
+        mockCollateralPoolContract as unknown as ethers.Contract,
+      );
+
     await vaultManager.approveVault(mockVaultAddress, true);
     expect(spyContract).toHaveBeenCalledWith(
-      mockConfig.collateralPool,
+      mockConfig.collateralPoolV2,
       CollateralPoolABI,
       mockSigner,
     );
@@ -1544,13 +1608,18 @@ describe("VaultManager approveVault for collateral pool", () => {
   });
 
   test("should log error if vault is not using collateral pool", async () => {
-    mockCollateralPoolContract.useCollateralPool = jest
-      .fn()
-      .mockReturnValue(false);
+    const mockVaultContract = {
+      version: jest.fn().mockReturnValue(8), // Series 1 vault, version 8
+      useCollateralPool: jest.fn().mockReturnValue(false),
+    };
+    const spyContract = jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValueOnce(mockVaultContract as unknown as ethers.Contract);
+
     await vaultManager.approveVault(mockVaultAddress, true);
     expect(spyContract).toHaveBeenCalledWith(
-      mockConfig.collateralPool,
-      CollateralPoolABI,
+      mockVaultAddress,
+      VaultABI,
       mockSigner,
     );
     expect(mockConsoleError).toHaveBeenCalledWith(

@@ -22,6 +22,7 @@ export type BlockchainConfig = {
   pythAggregator: string;
   pythPriceFeed: string;
   collateralPool: string;
+  collateralPoolV2: string;
   tradingPairs: TradingPairs;
 };
 
