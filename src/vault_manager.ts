@@ -218,6 +218,38 @@ export class VaultManager {
       : `${investmentTokenName}-${linkedTokenName}`;
   }
 
+  /**
+   * Check if a vault uses collateral pool
+   * Version format: series version in hundreds place, minor version in ones place
+   * e.g., 208 = series 2.8, 8 = series 0.8 (actually series 1)
+   * Series 2+ vaults always use collateral pool and don't have useCollateralPool() method
+   * @param vault - The vault contract
+   * @param versionRaw - Optional pre-fetched version number to avoid redundant calls (can be BigInt or number)
+   */
+  private async _checkUseCollateralPool(vault: ethers.Contract, versionRaw?: number | bigint): Promise<boolean> {
+    // If version is not provided, fetch it
+    if (versionRaw === undefined) {
+      versionRaw = await vault.version();
+    }
+
+    // Convert BigInt to number if needed
+    const version = Number(versionRaw);
+    const seriesVersion = Math.floor(version / 100);
+
+    if (seriesVersion >= 2) {
+      // Series 2+ vaults always use collateral pool
+      return true;
+    }
+
+    // For series 1 or older versions, check useCollateralPool() method
+    try {
+      return await vault.useCollateralPool();
+    } catch {
+      // If the method doesn't exist, assume it doesn't use collateral pool
+      return false;
+    }
+  }
+
   async createVault(createVaultOptions) {
     const isBuyLow = !!createVaultOptions.isBuyLow;
     const useCollateralPool = !!createVaultOptions.useCollateralPool;
@@ -432,7 +464,8 @@ export class VaultManager {
   async adjustVaultYield(vaultAddress: string, yieldPercentage: string) {
     const yieldValue = parseUnits(yieldPercentage, fixDecimals - 2).toString();
     const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
-    const useCollateralPool = await vault.useCollateralPool();
+
+    const useCollateralPool = await this._checkUseCollateralPool(vault);
 
     if (!useCollateralPool) {
       this.provider.isMulticallEnabled = true;
@@ -548,19 +581,30 @@ export class VaultManager {
   }
 
   async approveVault(vaultAddress: string, approve: boolean) {
-    const collateralPool = new ethers.Contract(
-      this.config.collateralPool,
-      CollateralPoolABI,
-      this.signer,
-    );
     const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
 
     try {
-      const useCollateralPool = await vault.useCollateralPool();
+      const versionRaw = await vault.version();
+      const version = Number(versionRaw);
+      const seriesVersion = Math.floor(version / 100);
+
+      const useCollateralPool = await this._checkUseCollateralPool(vault, version);
+
       if (!useCollateralPool) {
         console.error(`Vault ${vaultAddress} is not using collateral pool`);
         return;
       }
+
+      // Select collateral pool address based on series version
+      const collateralPoolAddress = seriesVersion >= 2
+        ? this.config.collateralPoolV2
+        : this.config.collateralPool;
+
+      const collateralPool = new ethers.Contract(
+        collateralPoolAddress,
+        CollateralPoolABI,
+        this.signer,
+      );
 
       await this._simulateTransaction(() =>
         collateralPool.approveVault.staticCall(vaultAddress, approve),
@@ -1043,7 +1087,7 @@ export class VaultManager {
           linkedTokenAddress,
           isBuyLow,
           state,
-          useCollateralPool,
+          version,
           depositTotalRaw,
         ] = await Promise.all([
           vault.expiry(),
@@ -1052,9 +1096,13 @@ export class VaultManager {
           vault.linkedToken(),
           vault.isBuyLow(),
           vault.state(),
-          vault.useCollateralPool(),
+          vault.version(),
           vault.depositTotal(),
         ]);
+
+        // Determine useCollateralPool based on version
+        const useCollateralPool = await this._checkUseCollateralPool(vault, version);
+
         return {
           address: vault.target,
           expiry,
