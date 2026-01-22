@@ -15,6 +15,7 @@
   "dependencies": {
     "@pythnetwork/hermes-client": "^1.1.0",
     "@pythnetwork/pyth-sdk-solidity": "^4.0.0",
+    "@openzeppelin/relayer-sdk": "^1.8.0",
     "command-line-args": "^6.0.0",
     "csv-parse": "^5.5.6",
     "dotenv": "^16.4.5",

@@ -3,7 +3,6 @@ import {
   parseUnits,
   formatUnits,
   ContractTransactionReceipt,
-  EventLog,
   EthersError,
   NonceManager,
 } from "ethers";
@@ -26,6 +25,7 @@ import IERC20ABI from "../abi/IERC20.json";
 import VaultCore from "../abi/VaultCore.json";
 import CollateralPoolABI from "../abi/CollateralPool.json";
 import VaultBatchManagerABI from "../abi/VaultBatchManager.json";
+import { isOzRelayerEnabled, OzRelayerClient } from "./oz_relayer_client";
 
 const DEFAULT_VAULT_FETCH_COUNT = 100;
 
@@ -39,16 +39,21 @@ export class VaultManager {
   basicSettings: BasicSettings;
   pythConnection: HermesClient;
   provider: MulticallProvider;
-  signer: ethers.NonceManager;
+  signer: ethers.Signer;
+  private readonly txMode: "local" | "relayer";
+  private readonly ozRelayer?: OzRelayerClient;
   factory: ethers.Contract;
   router: ethers.Contract;
   vaultBatchManager: ethers.Contract;
   pythPriceFeed: ethers.Contract;
 
   constructor(config: BlockchainConfig, basicSettings: BasicSettings) {
+    this.txMode = isOzRelayerEnabled() ? "relayer" : "local";
+    this.ozRelayer =
+      this.txMode === "relayer" ? new OzRelayerClient() : undefined;
     this.config = config;
     this.basicSettings = basicSettings;
-    this.pythConnection = new HermesClient(basicSettings.hermesApiBaseUrl, {});
+    this.pythConnection = new HermesClient(basicSettings.hermesApiBaseUrl, { timeout: 30000 });
     this._checkWeb3Settings();
     this.provider = MulticallWrapper.wrap(
       new ethers.JsonRpcProvider(this.config.rpcNode),
@@ -56,7 +61,15 @@ export class VaultManager {
     this.signer = this._initializeWallet();
   }
 
-  private _initializeWallet(): ethers.NonceManager {
+  private _initializeWallet(): ethers.Signer {
+    if (this.txMode === "relayer") {
+      if (!this.config.account) {
+        throw new Error(
+          "Relayer mode requires `account` to be set in config.json",
+        );
+      }
+      return new ethers.VoidSigner(this.config.account, this.provider);
+    }
     try {
       const walletJsonContent = readFileSync(
         `${process.cwd()}/${this.config.jsonWallet}`,
@@ -78,15 +91,161 @@ export class VaultManager {
     }
   }
 
+  private _isRelayerMode(): boolean {
+    return this.txMode === "relayer";
+  }
+
+  private async _getSignerAddress(): Promise<string> {
+    return await this.signer.getAddress();
+  }
+
+  private async _sendContractTxAndWait(args: {
+    contract: ethers.Contract;
+    functionName: string;
+    functionArgs: unknown[];
+    overrides?: ethers.TransactionRequest;
+  }): Promise<ContractTransactionReceipt> {
+    const { contract, functionName, functionArgs, overrides } = args;
+
+    if (!this._isRelayerMode()) {
+      const fn = (
+        contract as unknown as Record<
+          string,
+          (...fnArgs: unknown[]) => Promise<unknown>
+        >
+      )[functionName];
+      if (typeof fn !== "function") {
+        throw new Error(`Contract method not found: ${functionName}`);
+      }
+      const tx = overrides
+        ? await fn(...functionArgs, overrides)
+        : await fn(...functionArgs);
+      const receipt = await (tx as { wait: () => Promise<unknown> }).wait();
+      return receipt as ContractTransactionReceipt;
+    }
+
+    if (!this.ozRelayer) {
+      throw new Error("Relayer client is not initialized");
+    }
+
+    const to = contract.target as string | undefined;
+    if (!to) {
+      throw new Error(`Missing contract target for ${functionName}`);
+    }
+
+    const data = contract.interface.encodeFunctionData(
+      functionName,
+      functionArgs as ReadonlyArray<unknown>,
+    );
+    const value =
+      overrides?.value !== undefined ? BigInt(overrides.value.toString()) : 0n;
+
+    let gasLimit: bigint | number | undefined;
+    if (overrides?.gasLimit !== undefined) {
+      const gl = overrides.gasLimit;
+      gasLimit =
+        typeof gl === "bigint" || typeof gl === "number"
+          ? gl
+          : BigInt(gl.toString());
+    }
+
+    const maxAttempts = 20;
+    const timeoutMs = 120_000;
+    const pollMs = 1_000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const submitted = await this.ozRelayer.sendEvmTransaction({
+        to,
+        data,
+        value,
+        gasLimit,
+      });
+      console.log(
+        `[relayer] submitted tx id=${submitted.id} for ${functionName} (attempt ${attempt}/${maxAttempts})`,
+      );
+
+      const startedAt = Date.now();
+
+      while (true) {
+        const tx = await this.ozRelayer.getTransaction(submitted.id);
+
+        // Check for nonce conflict (fast fail) - only when hash is assigned
+        if (tx.hash && tx.nonce !== undefined && tx.from) {
+          const pendingNonce = await this.provider.getTransactionCount(
+            tx.from,
+            "pending",
+          );
+          if (pendingNonce > tx.nonce) {
+            const onchainTx = await this.provider.getTransaction(tx.hash);
+            if (!onchainTx) {
+              // Nonce consumed by external tx - cancel and retry
+              console.warn(
+                `[relayer] nonce conflict (nonce=${tx.nonce}, pending=${pendingNonce}), canceling...`,
+              );
+              try {
+                await this.ozRelayer.cancelTransaction(submitted.id);
+              } catch (err) {
+                console.warn(
+                  `[relayer] cancelTransaction failed: ${String(err)}`,
+                );
+              }
+              break; // Retry with new tx
+            }
+          }
+        }
+
+        // Check terminal status
+        if (tx.status === "mined" || tx.status === "confirmed") {
+          console.log(`[relayer] tx ${tx.status} hash=${tx.hash}`);
+          const receipt = await this.provider.waitForTransaction(tx.hash!);
+          return receipt as ContractTransactionReceipt;
+        }
+
+        if (
+          tx.status === "failed" ||
+          tx.status === "canceled" ||
+          tx.status === "expired"
+        ) {
+          // Check if it's a nonce-related failure - retry if so
+          const reason = (tx.status_reason ?? "").toLowerCase();
+          if (reason.includes("nonce") || reason.includes("already known")) {
+            console.warn(
+              `[relayer] ${tx.status}: ${tx.status_reason}, retrying...`,
+            );
+            break; // Break inner loop to retry
+          }
+          throw new Error(
+            `Relayer tx ${tx.status}: ${tx.status_reason ?? "unknown"}`,
+          );
+        }
+
+        // Timeout check
+        if (Date.now() - startedAt > timeoutMs) {
+          throw new Error(`Timeout waiting for tx ${submitted.id}`);
+        }
+
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+    }
+
+    throw new Error(
+      `Failed after ${maxAttempts} attempts due to nonce conflicts`,
+    );
+  }
+
   _checkWeb3Settings() {
     if (!this.config.rpcNode) {
       throw new Error("rpcNode is not set");
     }
-    if (!this.config.jsonWallet) {
-      throw new Error("wallet path is not set");
-    }
-    if (!this.config.passphrase) {
-      throw new Error("passphrase is not set");
+    if (this.txMode === "local") {
+      if (!this.config.jsonWallet) {
+        throw new Error("wallet path is not set");
+      }
+      if (!this.config.passphrase) {
+        throw new Error("passphrase is not set");
+      }
+    } else if (!this.config.account) {
+      throw new Error("account is not set (required for relayer mode)");
     }
     if (!this.config.factory) {
       throw new Error("factory is not set");
@@ -150,13 +309,24 @@ export class VaultManager {
   }
 
   async _approveERC20(token: ethers.Contract, spender: string, amount: string) {
-    const balance = await token.balanceOf(this.signer);
+    const signerAddress = await this._getSignerAddress();
+    const balance = await token.balanceOf(signerAddress);
     if (balance < BigInt(amount)) {
       const tokenName = await token.name();
       throw new Error(`Insufficient ${tokenName} balance`);
     }
-    const tx = await token.approve(spender, amount);
-    await tx.wait();
+    await this._simulateTransaction(() =>
+      token.approve.staticCall(spender, amount),
+    );
+    const receipt = await this._sendContractTxAndWait({
+      contract: token,
+      functionName: "approve",
+      functionArgs: [spender, amount],
+    });
+    if (receipt.status !== 1) {
+      const tokenName = await token.name();
+      throw new Error(`ERC20 approve failed for ${tokenName}`);
+    }
   }
 
   async _getHermesPriceUpdateAtTimestamp(
@@ -226,7 +396,10 @@ export class VaultManager {
    * @param vault - The vault contract
    * @param versionRaw - Optional pre-fetched version number to avoid redundant calls (can be BigInt or number)
    */
-  private async _checkUseCollateralPool(vault: ethers.Contract, versionRaw?: number | bigint): Promise<boolean> {
+  private async _checkUseCollateralPool(
+    vault: ethers.Contract,
+    versionRaw?: number | bigint,
+  ): Promise<boolean> {
     // If version is not provided, fetch it
     if (versionRaw === undefined) {
       versionRaw = await vault.version();
@@ -297,7 +470,7 @@ export class VaultManager {
       BigInt(quoteTokenDecimals) -
       BigInt(baseTokenDecimals);
 
-    const ownerAddress = await this.signer.getAddress();
+    const ownerAddress = await this._getSignerAddress();
     const vaultParams: CreateVaultParamsStruct = {
       owner: ownerAddress,
       baseToken: baseTokenAddress,
@@ -394,11 +567,16 @@ export class VaultManager {
       }),
     );
 
-    const tx = await factory.createVault(vaultParams, binaryData, {
-      value: updateFee,
-      gasLimit: 3000000,
-    });
-    const result: ContractTransactionReceipt = await tx.wait();
+    const result: ContractTransactionReceipt =
+      await this._sendContractTxAndWait({
+        contract: factory,
+        functionName: "createVault",
+        functionArgs: [vaultParams, binaryData],
+        overrides: {
+          value: updateFee,
+          gasLimit: 3000000,
+        },
+      });
 
     // Get vault address from event logs
     if (result.status == 1) {
@@ -406,14 +584,17 @@ export class VaultManager {
 
       let parsedLog = null;
       for (const log of result.logs) {
-        if (log instanceof EventLog) {
-          parsedLog = factory.interface.parseLog({
-            topics: log.topics,
+        try {
+          const parsed = factory.interface.parseLog({
+            topics: log.topics as string[],
             data: log.data,
           });
-          if (parsedLog.name == "VaultCreated") {
+          if (parsed && parsed.name === "VaultCreated") {
+            parsedLog = parsed;
             break;
           }
+        } catch {
+          // Not a matching event, continue
         }
       }
       if (!parsedLog) {
@@ -441,8 +622,12 @@ export class VaultManager {
               collateralPool.approveVault.staticCall(vaultAddress, true),
             );
 
-            const tx = await collateralPool.approveVault(vaultAddress, true);
-            const result: ContractTransactionReceipt = await tx.wait();
+            const result: ContractTransactionReceipt =
+              await this._sendContractTxAndWait({
+                contract: collateralPool,
+                functionName: "approveVault",
+                functionArgs: [vaultAddress, true],
+              });
             if (result.status !== 1) {
               throw new Error("CollateralPool approval failed");
             }
@@ -565,8 +750,12 @@ export class VaultManager {
         vault.adjustYieldValue.staticCall(yieldValue),
       );
 
-      const tx = await vault.adjustYieldValue(yieldValue);
-      const result: ContractTransactionReceipt = await tx.wait();
+      const result: ContractTransactionReceipt =
+        await this._sendContractTxAndWait({
+          contract: vault,
+          functionName: "adjustYieldValue",
+          functionArgs: [yieldValue],
+        });
       if (result.status == 1) {
         console.log(
           `Vault ${vaultAddress} yield adjusted to ${yieldPercentage}% successfully`,
@@ -588,7 +777,10 @@ export class VaultManager {
       const version = Number(versionRaw);
       const seriesVersion = Math.floor(version / 100);
 
-      const useCollateralPool = await this._checkUseCollateralPool(vault, version);
+      const useCollateralPool = await this._checkUseCollateralPool(
+        vault,
+        version,
+      );
 
       if (!useCollateralPool) {
         console.error(`Vault ${vaultAddress} is not using collateral pool`);
@@ -596,9 +788,10 @@ export class VaultManager {
       }
 
       // Select collateral pool address based on series version
-      const collateralPoolAddress = seriesVersion >= 2
-        ? this.config.collateralPoolV2
-        : this.config.collateralPool;
+      const collateralPoolAddress =
+        seriesVersion >= 2
+          ? this.config.collateralPoolV2
+          : this.config.collateralPool;
 
       const collateralPool = new ethers.Contract(
         collateralPoolAddress,
@@ -610,8 +803,12 @@ export class VaultManager {
         collateralPool.approveVault.staticCall(vaultAddress, approve),
       );
 
-      const tx = await collateralPool.approveVault(vaultAddress, approve);
-      const result: ContractTransactionReceipt = await tx.wait();
+      const result: ContractTransactionReceipt =
+        await this._sendContractTxAndWait({
+          contract: collateralPool,
+          functionName: "approveVault",
+          functionArgs: [vaultAddress, approve],
+        });
       if (result.status == 1) {
         console.log(
           `CollateralPool ${approve ? "approval" : "disapproval"} for vault ${vaultAddress} succeeded!`,
@@ -635,8 +832,12 @@ export class VaultManager {
     try {
       await this._simulateTransaction(() => vault.lpCancel.staticCall());
 
-      const tx = await vault.lpCancel();
-      const result: ContractTransactionReceipt = await tx.wait();
+      const result: ContractTransactionReceipt =
+        await this._sendContractTxAndWait({
+          contract: vault,
+          functionName: "lpCancel",
+          functionArgs: [],
+        });
 
       if (result.status == 1) {
         console.log(`Vault ${vaultAddress} cancelled successfully`);
@@ -711,14 +912,17 @@ export class VaultManager {
         ),
       );
 
-      const tx = await router.deposit(
-        vaultAddress,
-        subscribeAmount,
-        minYieldValue,
-        binaryData,
-        { value: updateFee },
-      );
-      const result = await tx.wait();
+      const result = await this._sendContractTxAndWait({
+        contract: router,
+        functionName: "deposit",
+        functionArgs: [
+          vaultAddress,
+          subscribeAmount,
+          minYieldValue,
+          binaryData,
+        ],
+        overrides: { value: updateFee },
+      });
 
       if (result.status == 1) {
         console.log(`Vault ${vaultAddress} subscribed successfully`);
@@ -732,7 +936,7 @@ export class VaultManager {
   }
 
   async withdrawVault(vaultAddress: string, checkOwner = false) {
-    const account = await this.signer.getAddress();
+    const account = await this._getSignerAddress();
     const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
 
     this.provider.isMulticallEnabled = true;
@@ -829,10 +1033,12 @@ export class VaultManager {
           }),
         );
 
-        const tx = await vault.lpWithdraw(binaryData, getPriceOptions, {
-          value: updateFee,
+        result = await this._sendContractTxAndWait({
+          contract: vault,
+          functionName: "lpWithdraw",
+          functionArgs: [binaryData, getPriceOptions],
+          overrides: { value: updateFee },
         });
-        result = await tx.wait();
       } else {
         // Check this.account balance in the vault, if it's 0, then subscriber has withdrawn the vault
         const balances = await vault.balances(account);
@@ -849,10 +1055,12 @@ export class VaultManager {
           }),
         );
 
-        const tx = await vault.withdraw(binaryData, getPriceOptions, {
-          value: updateFee,
+        result = await this._sendContractTxAndWait({
+          contract: vault,
+          functionName: "withdraw",
+          functionArgs: [binaryData, getPriceOptions],
+          overrides: { value: updateFee },
         });
-        result = await tx.wait();
       }
 
       if (result.status == 1) {
@@ -976,15 +1184,12 @@ export class VaultManager {
               ),
             );
 
-            const tx = await vaultBatchManager.lpWithdrawVaults(
-              vaults,
-              binaryData,
-              getPriceOptions,
-              {
-                value: totalUpdateFee,
-              },
-            );
-            result = await tx.wait();
+            result = await this._sendContractTxAndWait({
+              contract: vaultBatchManager,
+              functionName: "lpWithdrawVaults",
+              functionArgs: [vaults, binaryData, getPriceOptions],
+              overrides: { value: totalUpdateFee },
+            });
           } else {
             await this._simulateTransaction(() =>
               vaultBatchManager.withdrawVaults.staticCall(
@@ -997,15 +1202,12 @@ export class VaultManager {
               ),
             );
 
-            const tx = await vaultBatchManager.withdrawVaults(
-              vaults,
-              binaryData,
-              getPriceOptions,
-              {
-                value: totalUpdateFee,
-              },
-            );
-            result = await tx.wait();
+            result = await this._sendContractTxAndWait({
+              contract: vaultBatchManager,
+              functionName: "withdrawVaults",
+              functionArgs: [vaults, binaryData, getPriceOptions],
+              overrides: { value: totalUpdateFee },
+            });
           }
           console.log(
             `Successfully withdrawn vaults, tx hash: ${result.hash}, vault addresses: ${vaults}`,
@@ -1036,7 +1238,7 @@ export class VaultManager {
         VaultABI,
         this.signer,
       );
-      const account = await this.signer.getAddress();
+      const account = await this._getSignerAddress();
 
       this.provider.isMulticallEnabled = true;
       const [
@@ -1070,7 +1272,7 @@ export class VaultManager {
 
     // Check and filter vaults that are not yet available for withdrawal using multicall
     const filteredVaultData: VaultData[] = [];
-    const account = await this.signer.getAddress();
+    const account = await this._getSignerAddress();
 
     // Batch collect basic vault data using multicall
     const vaultContracts = vaultAddresses.map(
@@ -1101,7 +1303,10 @@ export class VaultManager {
         ]);
 
         // Determine useCollateralPool based on version
-        const useCollateralPool = await this._checkUseCollateralPool(vault, version);
+        const useCollateralPool = await this._checkUseCollateralPool(
+          vault,
+          version,
+        );
 
         return {
           address: vault.target,
@@ -1240,8 +1445,11 @@ export class VaultManager {
           vaultBatchManager.lpCancelVaults.staticCall(vaultAddresses),
         );
 
-        const tx = await vaultBatchManager.lpCancelVaults(vaultAddresses);
-        const result = await tx.wait();
+        const result = await this._sendContractTxAndWait({
+          contract: vaultBatchManager,
+          functionName: "lpCancelVaults",
+          functionArgs: [vaultAddresses],
+        });
 
         if (result.status == 1) {
           console.log(
@@ -1263,7 +1471,7 @@ export class VaultManager {
 
     // Check and filter vaults that can be cancelled
     const filteredVaultAddresses: string[] = [];
-    const account = await this.signer.getAddress();
+    const account = await this._getSignerAddress();
 
     // Batch collect basic vault data using multicall
     const vaultContracts = vaultAddresses.map(
@@ -1342,8 +1550,11 @@ export class VaultManager {
         vaultBatchManager.lpCancelVaults.staticCall(filteredVaultAddresses),
       );
 
-      const tx = await vaultBatchManager.lpCancelVaults(filteredVaultAddresses);
-      const result = await tx.wait();
+      const result = await this._sendContractTxAndWait({
+        contract: vaultBatchManager,
+        functionName: "lpCancelVaults",
+        functionArgs: [filteredVaultAddresses],
+      });
 
       if (result.status == 1) {
         console.log(
