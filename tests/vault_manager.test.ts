@@ -226,9 +226,15 @@ describe("VaultManager createVault", () => {
       }),
     },
     decimals: jest.fn().mockReturnValue(18),
-    approve: jest.fn().mockReturnValue({
-      wait: mockApproveWait,
-    }),
+    approve: (() => {
+      const fn = jest.fn().mockReturnValue({
+        wait: mockApproveWait,
+      });
+      (fn as any).staticCall = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve());
+      return fn;
+    })(),
     balanceOf: jest.fn().mockReturnValue(900000000000000000000000000n),
     name: jest.fn().mockReturnValue("ETH"),
     createVault: (() => {
@@ -538,9 +544,15 @@ describe("VaultManager cancelVault", () => {
           .mockImplementation(() => Promise.resolve());
         return fn;
       })(),
-      approve: jest.fn().mockReturnValue({
-        wait: mockApproveWait,
-      }),
+      approve: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockApproveWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       balanceOf: jest.fn().mockReturnValue(9000000000000000n),
       name: jest.fn().mockReturnValue("ETH"),
     };
@@ -568,6 +580,8 @@ describe("VaultManager subscribeVault", () => {
   });
 
   const vaultManager = new VaultManager(mockConfig, mockBasicSettings);
+  const mockSignature =
+    "0xf586aa3beda79685309b5b27b3213398446a9bd3fb40e4131bcd16583d85136b152021da9151ca3fb6068afe2b2ad67641d120025ecac4e00fb2d61a64d7a5731c";
 
   test("subscribe to vault successfully", async () => {
     const mockDepositWait = jest
@@ -591,9 +605,15 @@ describe("VaultManager subscribeVault", () => {
           .mockImplementation(() => Promise.resolve());
         return fn;
       })(),
-      approve: jest.fn().mockReturnValue({
-        wait: mockApproveWait,
-      }),
+      approve: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockApproveWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
       balanceOf: jest.fn().mockReturnValue(9000000000000000n),
       name: jest.fn().mockReturnValue("ETH"),
       isBuyLow: jest.fn().mockReturnValue(true),
@@ -665,6 +685,81 @@ describe("VaultManager subscribeVault", () => {
       { value: 1n },
     );
 
+    expect(mockApproveWait).toHaveBeenCalledTimes(1);
+    expect(mockDepositWait).toHaveBeenCalledTimes(1);
+  });
+
+  test("subscribe to signature-required vault successfully", async () => {
+    const mockDepositWait = jest
+      .fn<() => Promise<object>>()
+      .mockResolvedValue({ status: 1 });
+
+    const mockApproveWait = jest
+      .fn<() => Promise<object>>()
+      .mockResolvedValue({ status: 1 });
+
+    const mockContract = {
+      investmentToken: jest.fn().mockReturnValue(tradingPairConfig.quoteToken),
+      linkedToken: jest.fn().mockReturnValue(tradingPairConfig.baseToken),
+      decimals: jest.fn().mockReturnValue(6),
+      deposit: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockDepositWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
+      approve: (() => {
+        const fn = jest.fn().mockReturnValue({
+          wait: mockApproveWait,
+        });
+        (fn as any).staticCall = jest
+          .fn()
+          .mockImplementation(() => Promise.resolve());
+        return fn;
+      })(),
+      balanceOf: jest.fn().mockReturnValue(9000000000000000n),
+      name: jest.fn().mockReturnValue("ETH"),
+      isBuyLow: jest.fn().mockReturnValue(true),
+      yieldValue: jest.fn().mockReturnValue(10000000000000000n),
+      symbol: jest.fn().mockReturnValueOnce("WETH").mockReturnValueOnce("USDC"),
+      getUpdateFee: jest.fn().mockReturnValue(1n),
+    };
+
+    jest
+      .spyOn(ethers, "Contract")
+      .mockReturnValue(mockContract as unknown as ethers.Contract);
+
+    jest
+      .spyOn(vaultManager.pythConnection, "getLatestPriceUpdates")
+      .mockResolvedValue({
+        binary: {
+          encoding: "hex",
+          data: [mockHexData],
+        },
+        parsed: mockedParsedData,
+      });
+
+    await vaultManager.subscribeVault(mockVaultAddress, "1", {
+      signature: mockSignature,
+      signedYieldValue: "10000000000000000",
+      nonce: "123",
+      deadline: "1747262316",
+    });
+
+    expect(mockContract.deposit).toHaveBeenCalledWith(
+      mockVaultAddress,
+      "1000000",
+      "10000000000000000",
+      "123",
+      "1747262316",
+      mockSignature,
+      0,
+      [Buffer.from(mockHexData, "hex")],
+      { value: 1n },
+    );
     expect(mockApproveWait).toHaveBeenCalledTimes(1);
     expect(mockDepositWait).toHaveBeenCalledTimes(1);
   });
@@ -1352,6 +1447,7 @@ describe("VaultManager adjustVaultYield", () => {
           .mockImplementation(() => Promise.resolve());
         return fn;
       })(),
+      yieldValue: jest.fn<() => Promise<string>>().mockResolvedValue("0"),
       version: jest.fn().mockReturnValue(208), // Series 2 vault, version 208 (2.08)
       useCollateralPool: jest.fn().mockReturnValue(true),
       isBuyLow: jest.fn().mockReturnValue(true),

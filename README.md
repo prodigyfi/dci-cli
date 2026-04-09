@@ -27,7 +27,7 @@ Run the program `npx ts-node ./src/main.ts "<Bera Testnet|Bera Mainnet>" <COMMAN
   - `cancelMultipleVaults --vault <vault address> [--bypassCheck]`: Cancel multiple vaults in batch
   - `approveVault --vault <vault address> --approve <true|false>`: Approve a specific to use collateral pool or not
   - `adjustVaultYield --vault <vault address> --yieldPercentage <yield rate>`: Change yield for specific vault
-  - `subscribeVault --vault <vault address> --amount <amount>`: Subscribe a specific vault with amount
+  - `subscribeVault --vault <vault address> --amount <amount> [--signature <signature> --signedYieldValue <yield value> --nonce <nonce> --deadline <UNIX epoch>]`: Subscribe a specific vault with amount. For signature-required vaults, provide all four signature-related flags.
   - `withdrawVault --vault <vault address>`: Withdraw a specific vault
   - `lpWithdrawVault --vault <vault address>`: Withdraw a specific vault by the LP
   - `withdrawMultipleVaults --vault <vault address> [--bypassCheck]`: Withdraw multiple vaults with same trading pair and expiry

@@ -141,7 +141,13 @@ async function main() {
         },
       );
 
-      const valid = subscribeVaultOptions.vault && subscribeVaultOptions.amount;
+      const valid =
+        subscribeVaultOptions.vault &&
+        subscribeVaultOptions.amount &&
+        (!subscribeVaultOptions.signature ||
+          (subscribeVaultOptions.signedYieldValue &&
+            subscribeVaultOptions.nonce &&
+            subscribeVaultOptions.deadline));
 
       if (!valid) {
         throw commandLineErrorWithMessage(commandOptions.command);
@@ -150,6 +156,12 @@ async function main() {
       await vaultManager.subscribeVault(
         subscribeVaultOptions.vault,
         subscribeVaultOptions.amount,
+        {
+          signature: subscribeVaultOptions.signature,
+          signedYieldValue: subscribeVaultOptions.signedYieldValue,
+          nonce: subscribeVaultOptions.nonce,
+          deadline: subscribeVaultOptions.deadline,
+        },
       );
       break;
     }

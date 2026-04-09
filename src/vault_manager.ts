@@ -34,6 +34,13 @@ type VaultRangeOptions = {
   count?: number;
 };
 
+type SubscribeVaultSignatureOptions = {
+  signature?: string;
+  signedYieldValue?: string;
+  nonce?: string;
+  deadline?: string;
+};
+
 export class VaultManager {
   config: BlockchainConfig;
   basicSettings: BasicSettings;
@@ -53,7 +60,9 @@ export class VaultManager {
       this.txMode === "relayer" ? new OzRelayerClient() : undefined;
     this.config = config;
     this.basicSettings = basicSettings;
-    this.pythConnection = new HermesClient(basicSettings.hermesApiBaseUrl, { timeout: 30000 });
+    this.pythConnection = new HermesClient(basicSettings.hermesApiBaseUrl, {
+      timeout: 30000,
+    });
     this._checkWeb3Settings();
     this.provider = MulticallWrapper.wrap(
       new ethers.JsonRpcProvider(this.config.rpcNode),
@@ -168,31 +177,6 @@ export class VaultManager {
 
       while (true) {
         const tx = await this.ozRelayer.getTransaction(submitted.id);
-
-        // Check for nonce conflict (fast fail) - only when hash is assigned
-        if (tx.hash && tx.nonce !== undefined && tx.from) {
-          const pendingNonce = await this.provider.getTransactionCount(
-            tx.from,
-            "pending",
-          );
-          if (pendingNonce > tx.nonce) {
-            const onchainTx = await this.provider.getTransaction(tx.hash);
-            if (!onchainTx) {
-              // Nonce consumed by external tx - cancel and retry
-              console.warn(
-                `[relayer] nonce conflict (nonce=${tx.nonce}, pending=${pendingNonce}), canceling...`,
-              );
-              try {
-                await this.ozRelayer.cancelTransaction(submitted.id);
-              } catch (err) {
-                console.warn(
-                  `[relayer] cancelTransaction failed: ${String(err)}`,
-                );
-              }
-              break; // Retry with new tx
-            }
-          }
-        }
 
         // Check terminal status
         if (tx.status === "mined" || tx.status === "confirmed") {
@@ -525,7 +509,7 @@ export class VaultManager {
     // Future works: we should derive a more accurate value.
     const priceRate = Math.ceil(
       parseFloat(updatePriceData.parsed[0].ema_price.price) /
-        Math.pow(10, priceFeedDecimals),
+      Math.pow(10, priceFeedDecimals),
     );
     const oraclePriceAtCreationBN = parseUnits(
       priceRate.toString(),
@@ -649,6 +633,14 @@ export class VaultManager {
   async adjustVaultYield(vaultAddress: string, yieldPercentage: string) {
     const yieldValue = parseUnits(yieldPercentage, fixDecimals - 2).toString();
     const vault = new ethers.Contract(vaultAddress, VaultABI, this.signer);
+    const currentYieldValue = await vault.yieldValue();
+
+    if (BigInt(currentYieldValue) === BigInt(yieldValue)) {
+      console.error(
+        `Error: Vault ${vaultAddress} already has yield ${yieldPercentage}%.`,
+      );
+      return;
+    }
 
     const useCollateralPool = await this._checkUseCollateralPool(vault);
 
@@ -850,7 +842,44 @@ export class VaultManager {
     }
   }
 
-  async subscribeVault(vaultAddress: string, amount: string) {
+  async subscribeVault(
+    vaultAddress: string,
+    amount: string,
+    signatureOptions?: SubscribeVaultSignatureOptions,
+  ) {
+    const signature = signatureOptions?.signature?.trim();
+    const signedDeposit = !!signature;
+
+    let signedYieldValue: string | undefined;
+    let nonce: string | undefined;
+    let deadline: string | undefined;
+    if (signedDeposit) {
+      signedYieldValue = signatureOptions?.signedYieldValue?.trim();
+      nonce = signatureOptions?.nonce?.trim();
+      deadline = signatureOptions?.deadline?.trim();
+
+      if (!signedYieldValue || !nonce || !deadline) {
+        throw new Error(
+          "--signedYieldValue, --nonce and --deadline are required when --signature is provided",
+        );
+      }
+      if (!/^\d+$/.test(signedYieldValue)) {
+        throw new Error("--signedYieldValue must be a non-negative integer");
+      }
+      if (!/^\d+$/.test(nonce)) {
+        throw new Error("--nonce must be a non-negative integer");
+      }
+      if (!/^\d+$/.test(deadline)) {
+        throw new Error("--deadline must be a non-negative integer");
+      }
+      if (
+        !/^0x[0-9a-fA-F]+$/.test(signature) ||
+        (signature.length - 2) % 2 !== 0
+      ) {
+        throw new Error("--signature must be a valid hex string");
+      }
+    }
+
     const vault = new ethers.Contract(vaultAddress, VaultCore, this.signer);
     this.provider.isMulticallEnabled = true;
     const [isBuyLow, investmentTokenAddress, linkedTokenAddress] =
@@ -901,6 +930,45 @@ export class VaultManager {
         RouterABI,
         this.signer,
       );
+
+      if (signedDeposit) {
+        await this._simulateTransaction(() =>
+          router.deposit.staticCall(
+            vaultAddress,
+            subscribeAmount,
+            signedYieldValue,
+            nonce,
+            deadline,
+            signature,
+            minYieldValue,
+            binaryData,
+            { value: updateFee },
+          ),
+        );
+
+        const result = await this._sendContractTxAndWait({
+          contract: router,
+          functionName: "deposit",
+          functionArgs: [
+            vaultAddress,
+            subscribeAmount,
+            signedYieldValue,
+            nonce,
+            deadline,
+            signature,
+            minYieldValue,
+            binaryData,
+          ],
+          overrides: { value: updateFee },
+        });
+
+        if (result.status == 1) {
+          console.log(`Vault ${vaultAddress} subscribed successfully`);
+        } else {
+          console.error(`Vault ${vaultAddress} subscribed failed`);
+        }
+        return;
+      }
 
       await this._simulateTransaction(() =>
         router.deposit.staticCall(

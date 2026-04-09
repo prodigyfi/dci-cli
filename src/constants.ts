@@ -13,6 +13,10 @@ export const createVaultOperationDefinitions = [
 export const subscribeVaultOperationDefinitions = [
   { name: "vault", alias: "v", type: String },
   { name: "amount", alias: "a", type: String },
+  { name: "signature", alias: "s", type: String },
+  { name: "signedYieldValue", type: String },
+  { name: "nonce", type: String },
+  { name: "deadline", alias: "d", type: String },
 ];
 
 export const adjustVaultYieldOperationDefinitions = [
